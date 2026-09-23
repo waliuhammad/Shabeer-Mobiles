@@ -6,7 +6,7 @@ import { Hero } from "@/components/home/Hero";
 import { CategoryGrid } from "@/components/home/CategoryGrid";
 import { VisitShop } from "@/components/home/VisitShop";
 import { ServicesSection } from "@/components/home/ServicesSection";
-import { getFeaturedProducts, getBestSellers } from "@/data/products";
+import { getFeaturedProducts, getBestSellers } from "@/services/catalog.service";
 
 export const metadata: Metadata = {
   // Combined with the template in app/layout.tsx:
@@ -24,13 +24,17 @@ export const metadata: Metadata = {
  *   2. fetch its data
  *   3. compose section components in order
  *
- * In Phase 2, line 3 below becomes `await getFeaturedProducts()` against
- * Firestore and this component becomes async. Nothing else on the page
- * changes - that is what the data-access seam buys us.
+ * NOW READING FIRESTORE. The only change this needed was `await` and
+ * one import - the seam between "where data comes from" and "what the
+ * page renders" held, exactly as the earlier note predicted.
  */
-export default function HomePage() {
-  const featured = getFeaturedProducts(4);
-  const bestSellers = getBestSellers(4);
+export default async function HomePage() {
+  // Run together rather than one after the other. Both hit the same
+  // cached getActiveProducts() underneath, so this is one read, not two.
+  const [featured, bestSellers] = await Promise.all([
+    getFeaturedProducts(4),
+    getBestSellers(4),
+  ]);
 
   return (
     <>

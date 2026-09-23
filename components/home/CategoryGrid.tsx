@@ -1,11 +1,13 @@
 import { Container } from "@/components/shared/Container";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { CategoryCard } from "@/components/categories/CategoryCard";
-import { categories } from "@/data/categories";
-import { getActiveProducts } from "@/data/products";
+import { getActiveProducts, getCategories } from "@/services/catalog.service";
 
-export function CategoryGrid() {
-  const all = getActiveProducts();
+export async function CategoryGrid() {
+  const [all, categories] = await Promise.all([
+    getActiveProducts(),
+    getCategories(),
+  ]);
 
   return (
     <Container as="section" id="categories" className="py-12 lg:py-16">

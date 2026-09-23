@@ -11,7 +11,7 @@ import {
   getProductBySlug,
   getProductsByCategory,
   getActiveProducts,
-} from "@/data/products";
+} from "@/services/catalog.service";
 
 /**
  * PRE-RENDER EVERY PRODUCT PAGE AT BUILD TIME.
@@ -21,12 +21,17 @@ import {
  * /product/iphone-12-used then receives a ready-made page instead of
  * waiting for the server to render it.
  *
- * In Phase 2 this becomes a Firestore read of every active product's slug.
- * Products added after the build still work - they are rendered on demand
- * and cached from then on.
+ * NOW A FIRESTORE READ. Every active product's slug is fetched during the
+ * build. A product added AFTER the build still works - Next.js renders it
+ * on demand the first time it is requested, then caches it.
+ *
+ * This means the build needs the Admin SDK credentials. If they are
+ * missing the build fails loudly here, which is better than silently
+ * shipping a site with no product pages.
  */
-export function generateStaticParams() {
-  return getActiveProducts().map((product) => ({ slug: product.slug }));
+export async function generateStaticParams() {
+  const products = await getActiveProducts();
+  return products.map((product) => ({ slug: product.slug }));
 }
 
 /**
@@ -41,7 +46,7 @@ export async function generateMetadata({
   params,
 }: PageProps<"/product/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     return { title: "Product Not Found" };
@@ -88,7 +93,7 @@ export default async function ProductDetailPage({
   // Rename the folder to [productSlug] and this becomes params.productSlug.
   const { slug } = await params;
 
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
 
   /**
    * notFound() comes from next/navigation. It throws a special error that
@@ -107,7 +112,7 @@ export default async function ProductDetailPage({
   }
 
   // Related products: same category, excluding this one.
-  const related = getProductsByCategory(product.categorySlug)
+  const related = (await getProductsByCategory(product.categorySlug))
     .filter((p) => p.id !== product.id)
     .slice(0, 4);
 

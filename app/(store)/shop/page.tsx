@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/shared/Container";
 import { ShopBrowser } from "@/components/shop/ShopBrowser";
-import { getActiveProducts } from "@/data/products";
+import { getActiveProducts } from "@/services/catalog.service";
 import { categories } from "@/data/categories";
 
 export const metadata: Metadata = {
@@ -27,9 +27,9 @@ export default async function ShopPage({ searchParams }: PageProps<"/shop">) {
   const category = typeof params.category === "string" ? params.category : "all";
   const q = typeof params.q === "string" ? params.q : "";
 
-  // Phase 2: `await getActiveProducts()` hitting Firestore - ON THE SERVER,
+  // Reads Firestore ON THE SERVER, so a draft or archived product is
   // so no credentials reach the browser. This line is the only change.
-  const allProducts = getActiveProducts();
+  const allProducts = await getActiveProducts();
 
   return (
     <>
