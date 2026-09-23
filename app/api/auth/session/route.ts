@@ -102,10 +102,59 @@ export async function POST(request: Request) {
       isStaff: Boolean(decoded.staff),
       role: decoded.role ?? null,
     });
-  } catch {
-    // Deliberately vague to the caller: telling an attacker WHY a token
-    // failed helps them craft the next one. The detail stays server-side.
-    return NextResponse.json({ error: "Could not create a session." }, { status: 401 });
+  } catch (error) {
+    /**
+     * The CODE is returned, the message and stack are not.
+     *
+     * Telling an attacker exactly why a token failed helps them craft
+     * the next one. But returning nothing at all made a real production
+     * failure undiagnosable - the browser said "could not start a
+     * session" and there was no way to learn more without server log
+     * access. A short code is the balance: "auth/id-token-expired" is
+     * actionable, "app/invalid-credential" points at the server's own
+     * configuration, and neither leaks anything about the token.
+     */
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code: unknown }).code)
+        : "unknown";
+
+    console.error("[session] failed:", code, error);
+
+    // A configuration fault is the server's problem, not the caller's,
+    // and deserves a 5xx so it is not mistaken for a bad password.
+    const isServerFault = code.startsWith("app/");
+
+    return NextResponse.json(
+      { error: "Could not create a session.", code },
+      { status: isServerFault ? 503 : 401 }
+    );
+  }
+}
+
+/**
+ * Health check. No secrets, no session required.
+ *
+ * Reports whether the server can talk to Firebase at all. Without this,
+ * a misconfigured deployment looks identical to a wrong password from
+ * the browser's point of view.
+ */
+export async function GET() {
+  if (!isAdminConfigured()) {
+    return NextResponse.json({ ok: false, reason: "admin-env-missing" }, { status: 503 });
+  }
+  try {
+    // Forces credential parsing and app initialisation without touching
+    // any user data.
+    getAdminAuth();
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code: unknown }).code)
+        : "unknown";
+    const message = error instanceof Error ? error.message.slice(0, 200) : "";
+    return NextResponse.json({ ok: false, code, message }, { status: 503 });
   }
 }
 
