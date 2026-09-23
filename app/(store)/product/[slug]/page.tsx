@@ -31,6 +31,16 @@ import {
  * shipping a site with no product pages.
  */
 export async function generateStaticParams() {
+  /**
+   * Nothing to pre-render while the shop is off - the page 404s anyway.
+   *
+   * Returning early also keeps the BUILD free of any database access.
+   * Otherwise every deployment would need the Admin SDK service-account
+   * key just to generate pages nobody can reach, and a deploy without it
+   * would fail for no useful reason.
+   */
+  if (!ONLINE_STORE_ENABLED) return [];
+
   const products = await getActiveProducts();
   return products.map((product) => ({ slug: product.slug }));
 }

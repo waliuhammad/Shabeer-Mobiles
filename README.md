@@ -130,6 +130,12 @@ Stock is not a field anyone types. It is the running total of recorded movements
 
 Products archive, customers deactivate, expenses cancel, purchases cancel. Orders and invoices reference them by id; deleting would leave an invoice that cannot say what was sold. A financial record nobody can audit is worse than a wrong one everybody can see.
 
+## Deploying
+
+See [DEPLOYMENT.md](DEPLOYMENT.md). The short version: the build needs no
+environment variables, so import the repo into Vercel first, then add the
+Firebase keys and authorise the deployment domain in Firebase Auth.
+
 ## Project layout
 
 ```
