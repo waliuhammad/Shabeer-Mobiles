@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { StoreHeader } from "@/components/layout/StoreHeader";
 import { StoreFooter } from "@/components/layout/StoreFooter";
 import { Logo } from "@/components/shared/Logo";
@@ -31,9 +30,10 @@ export default function StoreLayout({ children }: LayoutProps<"/">) {
       <div className="flex min-h-dvh flex-col bg-muted/40">
         <header className="border-b border-border bg-background">
           <div className="mx-auto flex max-w-5xl items-center px-4 py-3">
-            <Link href="/admin" aria-label="Shabbir Mobiles admin">
-              <Logo />
-            </Link>
+            {/* Logo renders its own <Link>. Wrapping it in another one
+                nests <a> inside <a>, which is invalid HTML and caused a
+                hydration error on the live site. */}
+            <Logo />
           </div>
         </header>
 
