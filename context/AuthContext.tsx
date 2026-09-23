@@ -116,23 +116,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Called on every token change, which includes sign-in and the silent
    * hourly refresh - so the cookie never drifts out of date.
    */
-  const syncSession = useCallback(async (firebaseUser: User | null) => {
-    try {
-      if (!firebaseUser) {
-        await fetch("/api/auth/session", { method: "DELETE" });
-        return;
+  const syncSession = useCallback(
+    async (firebaseUser: User | null, { strict = false } = {}) => {
+      try {
+        if (!firebaseUser) {
+          await fetch("/api/auth/session", { method: "DELETE" });
+          return;
+        }
+        const idToken = await firebaseUser.getIdToken();
+        const response = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        });
+
+        /**
+         * A FAILED SESSION IS NOT A SILENT FAILURE.
+         *
+         * This used to ignore the response entirely. If the server could
+         * not mint a cookie - missing admin credentials, a clock skew,
+         * a revoked account - Firebase had still signed the user in, so
+         * the UI said "Signed in" while every server-rendered page
+         * treated them as a stranger. The symptom was landing straight
+         * back on the login page with no explanation.
+         *
+         * On an explicit sign-in (strict) that now throws, so the form
+         * can say what went wrong. On a background token refresh it
+         * stays quiet, because the user is not waiting on it and the
+         * next refresh will try again.
+         */
+        if (strict && !response.ok) {
+          const body: { error?: string } = await response.json().catch(() => ({}));
+          throw new Error(
+            body.error ?? "Signed in, but the server could not start a session."
+          );
+        }
+      } catch (error) {
+        if (strict) throw error;
+        // Background refresh - the next one will try again.
       }
-      const idToken = await firebaseUser.getIdToken();
-      await fetch("/api/auth/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      });
-    } catch {
-      // Network blip. The UI still works; server-rendered pages will
-      // simply treat this visitor as signed out until the next refresh.
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!configured) return;
@@ -160,10 +185,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, [syncSession, configured]);
 
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
-    // The cookie is created by the onIdTokenChanged listener above.
-  }, []);
+  /**
+   * EVERY SIGN-IN AWAITS THE SESSION COOKIE BEFORE RESOLVING.
+   *
+   * The onIdTokenChanged listener also creates the cookie, but it runs
+   * asynchronously - so a form that navigated as soon as signIn resolved
+   * could arrive at /admin BEFORE the cookie existed. proxy.ts would see
+   * no cookie and bounce it straight back to /login, which looked like
+   * "it says signed in but nothing happens".
+   *
+   * It won the race locally and lost it on Vercel, where the round trip
+   * is slower. Awaiting here removes the race rather than hiding it
+   * behind a timeout.
+   */
+  const signInWithEmail = useCallback(
+    async (email: string, password: string) => {
+      const credential = await signInWithEmailAndPassword(
+        getFirebaseAuth(),
+        email.trim(),
+        password
+      );
+      await syncSession(credential.user, { strict: true });
+    },
+    [syncSession]
+  );
 
   const registerWithEmail = useCallback(
     async (name: string, email: string, password: string) => {
@@ -178,8 +223,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // local copy or the header would show an empty name until reload.
         setUser(await toSessionUser(credential.user));
       }
+      // Same reason as signInWithEmail: the caller navigates as soon as
+      // this resolves, so the cookie has to exist by then.
+      await syncSession(credential.user, { strict: true });
     },
-    []
+    [syncSession]
   );
 
   const signInWithGoogle = useCallback(async () => {
@@ -187,8 +235,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Always ask which account, rather than silently reusing the last
     // one - shared shop computers are the normal case here.
     provider.setCustomParameters({ prompt: "select_account" });
-    await signInWithPopup(getFirebaseAuth(), provider);
-  }, []);
+    const credential = await signInWithPopup(getFirebaseAuth(), provider);
+    await syncSession(credential.user, { strict: true });
+  }, [syncSession]);
 
   /**
    * Phone sign-in, step 1.
@@ -222,9 +271,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const confirmPhoneCode = useCallback(
     async (confirmation: ConfirmationResult, code: string) => {
-      await confirmation.confirm(code.trim());
+      const credential = await confirmation.confirm(code.trim());
+      await syncSession(credential.user, { strict: true });
     },
-    []
+    [syncSession]
   );
 
   const signOut = useCallback(async () => {

@@ -7,6 +7,7 @@ import { MessageSquare, ArrowLeft, Loader2 } from "lucide-react";
 import type { ConfirmationResult } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/shared/FormField";
+import { DEFAULT_SIGNED_IN_ROUTE } from "@/lib/feature-flags";
 import { useAuth } from "@/context/AuthContext";
 import { isValidPakistaniPhone } from "@/lib/validation";
 import { authErrorMessage } from "@/types/auth";
@@ -94,7 +95,7 @@ export function PhoneSignIn({ onBack }: { onBack: () => void }) {
     try {
       await confirmPhoneCode(confirmation.current, code);
       toast.success("Signed in.");
-      router.push(params.get("next") ?? "/account");
+      router.push(params.get("next") ?? DEFAULT_SIGNED_IN_ROUTE);
       router.refresh();
     } catch (err) {
       setError(authErrorMessage(err));

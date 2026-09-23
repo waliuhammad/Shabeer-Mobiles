@@ -7,6 +7,7 @@ import { UserPlus, Loader2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/shared/FormField";
 import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
+import { DEFAULT_SIGNED_IN_ROUTE } from "@/lib/feature-flags";
 import { useAuth } from "@/context/AuthContext";
 import { authErrorMessage } from "@/types/auth";
 import {
@@ -113,7 +114,7 @@ export function RegisterForm() {
        */
       await registerWithEmail(fields.fullName, fields.email, fields.password);
       toast.success("Account created.", { description: "You are now signed in." });
-      router.push(params.get("next") ?? "/account");
+      router.push(params.get("next") ?? DEFAULT_SIGNED_IN_ROUTE);
       router.refresh();
     } catch (error) {
       setFormError(authErrorMessage(error));

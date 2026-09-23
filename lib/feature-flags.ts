@@ -46,3 +46,11 @@ export const ONLINE_STORE_ENABLED = false;
  * not signed-in staff to the login page.
  */
 export const HOME_REDIRECT = ONLINE_STORE_ENABLED ? null : "/admin";
+
+/**
+ * Where a successful sign-in lands when no ?next= was supplied.
+ *
+ * With the shop off there is no customer account page to go to - it
+ * 404s - so staff go to the panel they actually came for.
+ */
+export const DEFAULT_SIGNED_IN_ROUTE = ONLINE_STORE_ENABLED ? "/account" : "/admin";

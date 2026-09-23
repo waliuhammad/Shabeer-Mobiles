@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/shared/FormField";
 import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 import { PhoneSignIn } from "@/components/auth/PhoneSignIn";
+import { DEFAULT_SIGNED_IN_ROUTE } from "@/lib/feature-flags";
 import { useAuth } from "@/context/AuthContext";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { isValidEmail } from "@/lib/validation";
@@ -87,7 +88,7 @@ export function LoginForm() {
       toast.success("Signed in.");
       // `next` is set by proxy.ts when it bounced an unauthenticated
       // visitor, so they land where they were actually going.
-      router.push(params.get("next") ?? "/account");
+      router.push(params.get("next") ?? DEFAULT_SIGNED_IN_ROUTE);
       router.refresh();
     } catch (error) {
       setFormError(authErrorMessage(error));

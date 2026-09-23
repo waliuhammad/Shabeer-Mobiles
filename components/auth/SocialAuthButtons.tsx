@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FacebookIcon, GoogleIcon } from "@/components/shared/BrandIcons";
+import { DEFAULT_SIGNED_IN_ROUTE } from "@/lib/feature-flags";
 import { useAuth } from "@/context/AuthContext";
 import { authErrorMessage } from "@/types/auth";
 
@@ -39,7 +40,7 @@ export function SocialAuthButtons() {
     try {
       await signInWithGoogle();
       toast.success("Signed in with Google.");
-      router.push(params.get("next") ?? "/account");
+      router.push(params.get("next") ?? DEFAULT_SIGNED_IN_ROUTE);
       router.refresh();
     } catch (err) {
       setError(authErrorMessage(err));
