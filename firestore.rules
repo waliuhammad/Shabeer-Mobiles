@@ -1,0 +1,237 @@
+rules_version = '2';
+
+/**
+ * Firestore Security Rules - Shabbir Mobiles.
+ *
+ * ===================== WHY THIS FILE MATTERS =====================
+ * Everything else in this project is a convenience. A cashier who opens
+ * devtools can call Firestore directly, bypassing every React component,
+ * every hidden menu item and every route guard. These rules are the only
+ * thing standing between them and the purchase prices.
+ *
+ * The rule of thumb used throughout: the UI decides what is SHOWN, the
+ * rules decide what is READABLE. If those two ever disagree, the rules
+ * win - and that is the point.
+ * ================================================================
+ *
+ * NOTE ON STATE: as of the authentication step, the app still reads its
+ * data from data/*.ts and localStorage. No collection below is being
+ * used yet. These rules are written now, ahead of the data migration,
+ * so the shape of the permissions is agreed before anything relies on
+ * it - and so that deploying the migration cannot accidentally ship an
+ * open database.
+ *
+ * DEPLOY WITH:  firebase deploy --only firestore:rules
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ============ HELPERS ============ */
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Roles come from CUSTOM CLAIMS on the signed token, not from a
+     * document. A claim is signed by Google and cannot be altered by the
+     * client. A role stored in a user's own document could be rewritten
+     * by that user - which is exactly how a cashier would promote
+     * themselves to owner.
+     */
+    function role() {
+      return request.auth.token.role;
+    }
+
+    function isStaff() {
+      return signedIn() && request.auth.token.staff == true;
+    }
+
+    function isOwner() {
+      return isStaff() && role() == 'SUPER_ADMIN';
+    }
+
+    function isManager() {
+      return isStaff() && role() == 'MANAGER';
+    }
+
+    function isCashier() {
+      return isStaff() && role() == 'CASHIER';
+    }
+
+    function isOwnerOrManager() {
+      return isOwner() || isManager();
+    }
+
+    /** The signed-in customer themselves. */
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    /* ============ CATALOGUE ============ */
+
+    /**
+     * Products are world-readable - it is a shop, the catalogue is the
+     * point. Only staff may write.
+     *
+     * Note what is NOT in a product document: purchasePrice. Cost lives
+     * in productCosts/{id} below, because a public read of the catalogue
+     * must not be able to carry the shop's margins with it. A field
+     * cannot leak from a document it is not in.
+     */
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update: if isOwnerOrManager();
+      // Products are archived by setting status, never deleted - orders
+      // reference them and would be left pointing at nothing.
+      allow delete: if false;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isOwnerOrManager();
+    }
+
+    /**
+     * COST. The single most sensitive collection in the shop.
+     *
+     * A cashier must not read this, which is why the POS stamps cost
+     * onto an invoice on the SERVER rather than looking it up in the
+     * browser.
+     */
+    match /productCosts/{productId} {
+      allow read: if isOwnerOrManager();
+      allow write: if isOwnerOrManager();
+    }
+
+    /* ============ CUSTOMERS ============ */
+
+    /**
+     * A customer may read and update their OWN record and nothing else.
+     * The document id is the Firebase Auth uid, which is what makes
+     * isSelf() possible without a lookup.
+     */
+    match /customers/{customerId} {
+      allow read: if isSelf(customerId) || isStaff();
+      allow create: if isSelf(customerId) || isStaff();
+      allow update: if isSelf(customerId) || isStaff();
+      // Customers are deactivated, never deleted - their orders record
+      // who bought what.
+      allow delete: if false;
+    }
+
+    /* ============ ORDERS ============ */
+
+    /**
+     * A shopper reads their own orders. Staff read all of them.
+     *
+     * WRITES ARE SERVER-ONLY. `allow write: if false` blocks every
+     * client, including a signed-in staff member, because an order's
+     * total, its stock movements and its cost snapshot must all be
+     * computed by trusted code in one transaction. A browser that can
+     * write an order is a browser that can set total = 0.
+     *
+     * The admin order screens will go through a Cloud Function or a
+     * Next.js server action using the Admin SDK, which bypasses these
+     * rules by design.
+     */
+    match /orders/{orderId} {
+      allow read: if isStaff() ||
+                     (signedIn() && resource.data.customerId == request.auth.uid);
+      allow write: if false;
+    }
+
+    /* ============ COUNTER SALES ============ */
+
+    /**
+     * Invoices carry purchasePrice on every line, so a customer must
+     * never read one - they are handed a printed receipt instead, which
+     * does not include cost.
+     *
+     * A cashier needs to CREATE invoices but not to read historic ones,
+     * and in any case creation goes through the server so the totals and
+     * the cost snapshot are trustworthy.
+     */
+    match /invoices/{invoiceId} {
+      allow read: if isOwnerOrManager();
+      allow write: if false;
+    }
+
+    /* ============ INVENTORY ============ */
+
+    /**
+     * Stock levels are visible to all staff - a cashier must know
+     * whether an item is in stock.
+     *
+     * The LEDGER is append-only and server-written. If a browser could
+     * write a movement, stock could be conjured from nothing and the
+     * ledger would stop reconciling with the shelf.
+     */
+    match /inventory/{productId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    match /inventoryTransactions/{txnId} {
+      allow read: if isOwnerOrManager();
+      allow write: if false;
+    }
+
+    /* ============ PURCHASING ============ */
+
+    // Supplier prices are cost data. Cashiers get nothing here.
+    match /suppliers/{supplierId} {
+      allow read: if isOwnerOrManager();
+      allow write: if isOwnerOrManager();
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if isOwnerOrManager();
+      // Receiving a purchase moves stock, so it must be a server action.
+      allow create, update: if false;
+      allow delete: if false;
+    }
+
+    /* ============ FINANCE ============ */
+
+    match /expenses/{expenseId} {
+      allow read: if isOwnerOrManager();
+      allow create, update: if isOwnerOrManager();
+      // Cancelled, never deleted - a financial record nobody can audit
+      // is worse than a wrong one everybody can see.
+      allow delete: if false;
+    }
+
+    /** Shop settings: everyone reads (the footer needs them), owner writes. */
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
+    /**
+     * Staff directory. Readable by staff so the admin can list
+     * colleagues; writable only by the owner.
+     *
+     * Note this collection does NOT grant anything. Roles live in custom
+     * claims, set by scripts/set-role.mjs. If someone edited a role
+     * field in here, it would change a label and nothing else - which is
+     * exactly the property we want.
+     */
+    match /staff/{uid} {
+      allow read: if isStaff();
+      allow write: if isOwner();
+    }
+
+    /* ============ DEFAULT DENY ============ */
+
+    /**
+     * Anything not matched above is refused. New collections start
+     * closed and have to be opened deliberately, which is the right way
+     * round - a forgotten rule fails safe instead of leaking.
+     */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

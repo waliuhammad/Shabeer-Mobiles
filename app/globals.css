@@ -1,26 +1,334 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   LAYER 1 — SHABBIR MOBILES BRAND PALETTE
+   Source: the shop business card.
+   These are the ONLY raw colour values in the entire codebase.
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --brand-navy: #0b1f3a;       /* deep navy - primary structural colour */
+  --brand-navy-deep: #071528;  /* darker navy - footer, admin sidebar   */
+  --brand-navy-soft: #16365e;  /* lighter navy - hover states           */
+
+  --brand-gold: #f5b301;       /* yellow/gold - primary CTA accent      */
+  --brand-gold-deep: #d99a00;  /* gold hover                            */
+
+  --brand-cyan: #12b5cb;       /* cyan/teal - secondary accent          */
+  --brand-cyan-soft: #e6f8fb;  /* cyan tint - soft backgrounds          */
+
+  --brand-violet: #6366f1;     /* small secondary accent (charts, tags) */
+
+  --neutral-0: #ffffff;
+  --neutral-50: #f7f9fc;
+  --neutral-100: #eef2f7;
+  --neutral-200: #e2e8f0;
+  --neutral-500: #64748b;
+  --neutral-900: #0f172a;
+
+  --state-success: #16a34a;
+  --state-warning: #f59e0b;
+  --state-danger: #dc2626;
 }
 
+/* ============================================================
+   LAYER 2 — SEMANTIC TOKENS
+   Components reference THESE, never the brand layer above.
+   Names match the shadcn/ui contract so its primitives work.
+   ============================================================ */
+:root {
+  --radius: 0.65rem;
+
+  --background: var(--neutral-0);
+  --foreground: var(--neutral-900);
+
+  --card: var(--neutral-0);
+  --card-foreground: var(--neutral-900);
+  --popover: var(--neutral-0);
+  --popover-foreground: var(--neutral-900);
+
+  /* Primary = navy. Structure, headers, dark surfaces. */
+  --primary: var(--brand-navy);
+  --primary-foreground: var(--neutral-0);
+
+  /* Secondary = cyan. Links, highlights, secondary buttons. */
+  --secondary: var(--brand-cyan);
+  --secondary-foreground: var(--neutral-0);
+
+  /* Accent = gold. THE call-to-action colour. */
+  --accent: var(--brand-gold);
+  --accent-foreground: var(--brand-navy);
+
+  --muted: var(--neutral-100);
+  --muted-foreground: var(--neutral-500);
+
+  --destructive: var(--state-danger);
+  --destructive-foreground: var(--neutral-0);
+  --success: var(--state-success);
+  --warning: var(--state-warning);
+
+  --border: var(--neutral-200);
+  --input: var(--neutral-200);
+  --ring: var(--brand-cyan);
+
+  /* ----------------------------------------------------------------
+     CHART SERIES COLOURS
+
+     NOT the raw brand colours. The UI tokens above are tuned for large
+     areas and text; chart marks are small and sit on white, so they need
+     a different lightness band. Brand navy (#0b1f3a) is too dark and too
+     grey to read as a hue at 8px, and brand gold (#f5b301) is too light
+     to hold 3:1 against a white card.
+
+     These are the same brand HUES snapped into the band a categorical
+     chart palette requires: OKLCH L 0.43-0.77, chroma >= 0.10, and >= 3:1
+     contrast against the surface. The order is fixed and never cycled;
+     blue and cyan are deliberately NOT adjacent, because at adjacent
+     positions their separation falls under the normal-vision floor.
+
+     Verified with the dataviz validator: lightness band, chroma floor,
+     protan/deutan/tritan separation, normal-vision floor and surface
+     contrast all pass, in both light and dark mode.
+     ---------------------------------------------------------------- */
+  --chart-1: #3263a6; /* blue   - brand navy hue, L 0.50 */
+  --chart-2: #b17200; /* gold   - brand gold hue, L 0.60 */
+  --chart-3: #0092a8; /* cyan   - brand cyan hue, L 0.60 */
+  --chart-4: #5a5be5; /* violet - brand violet hue, L 0.55 */
+  --chart-5: #64748b; /* neutral - reserved for "Other", never identity */
+
+  /* Admin sidebar - declared now so Phase 1D needs no CSS changes */
+  --sidebar: var(--brand-navy-deep);
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: var(--brand-gold);
+  --sidebar-primary-foreground: var(--brand-navy);
+  --sidebar-accent: var(--brand-navy-soft);
+  --sidebar-accent-foreground: var(--neutral-0);
+  --sidebar-border: #16365e;
+  --sidebar-ring: var(--brand-cyan);
+}
+
+/* Dark mode declared for completeness. No toggle is wired up in Phase 1. */
+.dark {
+  --background: #060f1d;
+  --foreground: #e6edf7;
+  --card: #0c1a2e;
+  --card-foreground: #e6edf7;
+  --popover: #0c1a2e;
+  --popover-foreground: #e6edf7;
+  --primary: var(--neutral-0);
+  --primary-foreground: var(--brand-navy);
+  --secondary: var(--brand-cyan);
+  --secondary-foreground: var(--brand-navy-deep);
+  --muted: #132741;
+  --muted-foreground: #94a3b8;
+  --accent: var(--brand-gold);
+  --accent-foreground: var(--brand-navy);
+  --border: #1d3452;
+  --input: #1d3452;
+  --ring: var(--brand-cyan);
+
+  /* Dark-mode chart steps: re-derived against the dark card surface
+     (#0c1a2e), not an automatic lightening of the light-mode values.
+     Validated separately. */
+  --chart-1: #5d91d7;
+  --chart-2: #c18100;
+  --chart-3: #00a2b8;
+  --chart-4: #747bff;
+  --chart-5: #94a3b8;
+
+  --sidebar: var(--brand-navy-deep);
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: var(--brand-gold);
+  --sidebar-primary-foreground: var(--brand-navy);
+  --sidebar-accent: var(--brand-navy-soft);
+  --sidebar-accent-foreground: var(--neutral-0);
+  --sidebar-border: #1d3452;
+  --sidebar-ring: var(--brand-cyan);
+}
+
+/* ============================================================
+   LAYER 3 — TAILWIND BINDING
+   Turns each variable into a utility class.
+   --color-primary -> bg-primary / text-primary / border-primary
+   ============================================================ */
 @theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-poppins), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-display: var(--font-poppins), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-navy: var(--brand-navy);
+  --color-navy-deep: var(--brand-navy-deep);
+  --color-navy-soft: var(--brand-navy-soft);
+  --color-gold: var(--brand-gold);
+  --color-gold-deep: var(--brand-gold-deep);
+  --color-cyan-soft: var(--brand-cyan-soft);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-heading tracking-tight;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================================
+   PRINT
+
+   The POS invoice is the only thing in this project meant to reach
+   paper. When window.print() runs, the admin sidebar, topbar, product
+   list and every other piece of chrome must disappear, leaving just the
+   receipt.
+
+   WHY `visibility` AND NOT `display`.
+   The invoice overlay is deep inside the React tree, so its ancestors
+   are the same elements that contain the sidebar. Setting display:none
+   on those ancestors removes the overlay along with them - which is
+   exactly what happened on the first attempt: the sidebar printed and
+   the receipt did not.
+
+   `visibility` does not have that problem. A hidden ancestor can still
+   contain a visible descendant, so hiding everything and then re-showing
+   the overlay works regardless of how deeply it is nested.
+
+   The trade-off is that hidden elements still occupy space, which would
+   leave blank pages before the receipt. Absolutely positioning the
+   overlay at the top-left takes it out of that flow.
+   ============================================================ */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    /* Stops the hidden page content generating trailing blank sheets. */
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Hide everything... */
+  body * {
+    visibility: hidden !important;
+    box-shadow: none !important;
+  }
+
+  /* ...then bring back only the invoice overlay and its contents. */
+  .print-overlay,
+  .print-overlay * {
+    visibility: visible !important;
+  }
+
+  /* Lift it out of the normal flow so the hidden UI leaves no gap. */
+  .print-overlay {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* The receipt: flat, borderless, full width, black on white. */
+  .print-sheet {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* The admin ORDER detail prints the same way: hide everything, then
+     reveal just the order block. Same visibility technique as the POS
+     invoice overlay above, for the same reason. */
+  .print-order,
+  .print-order * {
+    visibility: visible !important;
+  }
+
+  .print-order {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .print-order section,
+  .print-order .rounded-xl {
+    border-color: #ddd !important;
+    background: #fff !important;
+  }
+
+  /* Screen-only controls (toolbar, internal notes, dev notes) stay
+     hidden even inside a revealed block - the rules above would
+     otherwise expose them. An internal note must never reach paper. */
+  .no-print,
+  .no-print * {
+    visibility: hidden !important;
+    display: none !important;
+  }
+
+  /* Do not split a line item across two sheets. */
+  tr,
+  article {
+    break-inside: avoid;
+  }
+
+  @page {
+    margin: 12mm;
+  }
 }
