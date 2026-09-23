@@ -96,7 +96,7 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
     setErrors(visible(validate(data), nextTouched));
   };
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const found = validate(data);
@@ -113,7 +113,7 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
       return;
     }
 
-    const created = createSupplier(data);
+    const created = await createSupplier(data);
     toast.success("Supplier added.", { description: created.name });
     router.push(`/admin/suppliers/${created.id}`);
   }

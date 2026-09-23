@@ -380,8 +380,8 @@ export function OrderDetailView({ fallbackOrder }: OrderDetailViewProps) {
         </div>
 
         <p className="no-print text-center text-xs text-muted-foreground">
-          Demo data. Changing a status here records activity in this browser -
-          it does not create a sale, change stock, or notify the customer.
+          Status changes are saved to the database and recorded in the activity
+          trail. They do not yet change stock or notify the customer.
         </p>
       </div>
 

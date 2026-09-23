@@ -1,175 +1,144 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { mockCustomers } from "@/data/customers";
-import { useIsHydrated } from "@/hooks/use-is-hydrated";
+import { createContext, useCallback, useContext, useMemo } from "react";
+import type { QueryDocumentSnapshot } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { writeDoc } from "@/lib/firebase/write";
+import { useAuth } from "@/context/AuthContext";
 import { WALK_IN_CUSTOMER_ID } from "@/types";
 import type { Customer, CustomerFormData } from "@/types";
 
-const STORAGE_KEY = "shabbir-mobiles:customers:v1";
-
 /**
- * The customer directory.
+ * The customer directory - live Firestore.
  *
  * ONE source, shared by the admin customer screens AND the POS picker.
- * A customer a cashier creates mid-sale appears in the admin list
- * immediately, because there is only one list.
+ * A customer a cashier creates mid-sale now appears on the owner's
+ * laptop immediately, because both are watching the same collection
+ * rather than two separate browser caches.
  *
- * WHAT IS STORED: customers created or edited in this browser, layered
- * over the shared seed in data/customers.ts. An edited seed customer is
- * stored whole and shadows the seed by id, so changing one name does not
- * copy the other eight.
- *
- * KNOWN LIMITATION, same as every other mock store here: this lives in
- * one browser. Real customers belong in Firestore, where the counter and
- * the website genuinely see the same directory.
+ * THE WALK-IN RECORD IS SYNTHETIC. It is not stored in Firestore: it is
+ * a stable placeholder the POS attaches anonymous counter sales to.
+ * Writing it to the database would invite someone to edit or deactivate
+ * it, and every past invoice pointing at it would lose its meaning. It
+ * is prepended in memory instead.
  */
+
+const WALK_IN: Customer = {
+  id: WALK_IN_CUSTOMER_ID,
+  name: "Walk-in Customer",
+  phone: "",
+  email: "",
+  address: "",
+  city: "",
+  notes: "System record for anonymous counter sales. Not a real person.",
+  status: "ACTIVE",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 interface CustomersContextValue {
-  /** Everyone, including the walk-in system record. */
   customers: Customer[];
-  /** Real people only - excludes the walk-in row. */
   people: Customer[];
   getCustomer: (id: string) => Customer | undefined;
-  /** Active real people, for the POS picker. */
   selectableCustomers: Customer[];
-  createCustomer: (data: CustomerFormData) => Customer;
-  updateCustomer: (id: string, data: CustomerFormData) => Customer | undefined;
-  /** Flips status. Never deletes - see types/customer.ts. */
-  setCustomerStatus: (id: string, status: Customer["status"]) => void;
-  resetCustomers: () => void;
-  localChangeCount: number;
+  createCustomer: (data: CustomerFormData) => Promise<Customer>;
+  updateCustomer: (id: string, data: CustomerFormData) => Promise<Customer | undefined>;
+  setCustomerStatus: (id: string, status: Customer["status"]) => Promise<void>;
+  loading: boolean;
+  error: string | null;
   isHydrated: boolean;
 }
 
 const CustomersContext = createContext<CustomersContextValue | null>(null);
 
-function readStored(): Customer[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (c): c is Customer =>
-        typeof c === "object" &&
-        c !== null &&
-        typeof (c as Customer).id === "string" &&
-        typeof (c as Customer).name === "string"
-    );
-  } catch {
-    return [];
-  }
+function mapCustomer(doc: QueryDocumentSnapshot): Customer | null {
+  const d = doc.data();
+  if (typeof d.name !== "string") return null;
+  return {
+    id: doc.id,
+    name: d.name,
+    phone: typeof d.phone === "string" ? d.phone : "",
+    email: typeof d.email === "string" ? d.email : "",
+    address: typeof d.address === "string" ? d.address : "",
+    city: typeof d.city === "string" ? d.city : "",
+    notes: typeof d.notes === "string" ? d.notes : "",
+    status: d.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    createdAt: typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
+    updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : new Date(0).toISOString(),
+  };
 }
 
 export function CustomersProvider({ children }: { children: React.ReactNode }) {
-  const [local, setLocal] = useState<Customer[]>(readStored);
-  const isHydrated = useIsHydrated();
+  const { user, loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
-    } catch {
-      // Storage blocked or full - still works for this session.
-    }
-  }, [local]);
+  // Customer records are personal data: firestore.rules allows a read
+  // only to staff, or to the customer themselves. Do not open a
+  // listener that is certain to be refused.
+  const enabled = !authLoading && Boolean(user?.isStaff);
 
-  const customers = useMemo(() => {
-    if (!isHydrated) return mockCustomers;
+  const state = useFirestoreCollection<Customer>(COLLECTIONS.customers, mapCustomer, {
+    enabled,
+  });
 
-    // Seed rows, with any local edit shadowing them by id...
-    const merged = mockCustomers.map(
-      (seed) => local.find((l) => l.id === seed.id) ?? seed
-    );
-    // ...then anyone created in this browser.
-    const brandNew = local.filter(
-      (l) => !mockCustomers.some((m) => m.id === l.id)
-    );
+  const people = state.items;
 
-    return [...merged, ...brandNew];
-  }, [local, isHydrated]);
-
-  const people = useMemo(
-    () => customers.filter((c) => c.id !== WALK_IN_CUSTOMER_ID),
-    [customers]
-  );
-
-  /**
-   * Who the POS may attach to a bill.
-   *
-   * Active only: an inactive customer is kept for their history but
-   * should not be offered for new business. The walk-in record is
-   * handled separately by the picker, as its own explicit choice.
-   */
-  const selectableCustomers = useMemo(
-    () => people.filter((c) => c.status === "ACTIVE"),
-    [people]
-  );
+  const customers = useMemo(() => [WALK_IN, ...people], [people]);
 
   const getCustomer = useCallback(
     (id: string) => customers.find((c) => c.id === id),
     [customers]
   );
 
-  const upsert = useCallback((customer: Customer) => {
-    setLocal((current) => [
-      ...current.filter((c) => c.id !== customer.id),
-      customer,
-    ]);
-  }, []);
-
-  const createCustomer = useCallback(
-    (data: CustomerFormData): Customer => {
-      const now = new Date().toISOString();
-      const customer: Customer = {
-        // "cus_" prefix keeps a customer id visibly different from an
-        // order number or an invoice number at a glance.
-        id: `cus_${Date.now().toString(36)}`,
-        ...data,
-        createdAt: now,
-        updatedAt: now,
-      };
-      upsert(customer);
-      return customer;
-    },
-    [upsert]
+  /**
+   * Who the POS may attach to a bill. Active only - an inactive customer
+   * keeps their history but is not offered for new business. Walk-in is
+   * offered separately by the picker as its own explicit choice.
+   */
+  const selectableCustomers = useMemo(
+    () => people.filter((c) => c.status === "ACTIVE"),
+    [people]
   );
 
+  const createCustomer = useCallback(async (data: CustomerFormData): Promise<Customer> => {
+    const stamp = new Date().toISOString();
+    const customer: Customer = {
+      // "cus_" keeps a customer id visibly different from an order or
+      // invoice number at a glance.
+      id: `cus_${Date.now().toString(36)}`,
+      ...data,
+      createdAt: stamp,
+      updatedAt: stamp,
+    };
+    await writeDoc(COLLECTIONS.customers, customer.id, customer);
+    return customer;
+  }, []);
+
   const updateCustomer = useCallback(
-    (id: string, data: CustomerFormData): Customer | undefined => {
+    async (id: string, data: CustomerFormData): Promise<Customer | undefined> => {
       const existing = getCustomer(id);
       if (!existing) return undefined;
-      // The walk-in row is a system record, not a person.
+      // The walk-in row is synthetic - there is nothing to update.
       if (id === WALK_IN_CUSTOMER_ID) return undefined;
 
-      const updated: Customer = {
-        ...existing,
-        ...data,
-        updatedAt: new Date().toISOString(),
-      };
-      upsert(updated);
+      const updated: Customer = { ...existing, ...data, updatedAt: new Date().toISOString() };
+      await writeDoc(COLLECTIONS.customers, id, updated);
       return updated;
     },
-    [getCustomer, upsert]
+    [getCustomer]
   );
 
   const setCustomerStatus = useCallback(
-    (id: string, status: Customer["status"]) => {
-      const existing = getCustomer(id);
-      if (!existing || id === WALK_IN_CUSTOMER_ID) return;
-      upsert({ ...existing, status, updatedAt: new Date().toISOString() });
+    async (id: string, status: Customer["status"]) => {
+      if (id === WALK_IN_CUSTOMER_ID) return;
+      // Deactivate, never delete - their orders record who bought what.
+      await writeDoc(COLLECTIONS.customers, id, {
+        status,
+        updatedAt: new Date().toISOString(),
+      });
     },
-    [getCustomer, upsert]
+    []
   );
-
-  const resetCustomers = useCallback(() => setLocal([]), []);
 
   const value = useMemo(
     () => ({
@@ -180,21 +149,13 @@ export function CustomersProvider({ children }: { children: React.ReactNode }) {
       createCustomer,
       updateCustomer,
       setCustomerStatus,
-      resetCustomers,
-      localChangeCount: isHydrated ? local.length : 0,
-      isHydrated,
+      loading: state.loading,
+      error: state.error,
+      isHydrated: !state.loading,
     }),
     [
-      customers,
-      people,
-      getCustomer,
-      selectableCustomers,
-      createCustomer,
-      updateCustomer,
-      setCustomerStatus,
-      resetCustomers,
-      local.length,
-      isHydrated,
+      customers, people, getCustomer, selectableCustomers, createCustomer,
+      updateCustomer, setCustomerStatus, state.loading, state.error,
     ]
   );
 

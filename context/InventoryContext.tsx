@@ -1,248 +1,217 @@
 "use client";
 
+import { createContext, useCallback, useContext, useMemo } from "react";
+import type { QueryDocumentSnapshot } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { writeBatchDocs } from "@/lib/firebase/write";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { products } from "@/data/products";
-import { seedInventoryTransactions } from "@/data/mock-inventory";
-import { applyStockChange } from "@/lib/inventory-utils";
-import { useIsHydrated } from "@/hooks/use-is-hydrated";
-import type { InventoryTransaction, StockAdjustmentInput } from "@/types";
-import type {
-  StockChangeRequest,
-  StockChangeResult,
+  applyStockChange,
+  type StockChangeRequest,
+  type StockChangeResult,
 } from "@/lib/inventory-utils";
-
-const STORAGE_KEY = "shabbir-mobiles:inventory-txns:v1";
+import { useAuth } from "@/context/AuthContext";
+import { useCatalog } from "@/context/CatalogContext";
+import type {
+  InventoryTransaction,
+  InventoryTransactionType,
+  StockAdjustmentInput,
+} from "@/types";
 
 /**
- * Holds the mock inventory ledger and derives live stock from it.
+ * Stock and the inventory ledger - live Firestore.
  *
- * WHY STOCK IS DERIVED, NOT STORED
- * --------------------------------
- * There is no second copy of the stock number to keep in sync. Live stock
- * for a product is simply:
+ * THE LEDGER IS THE TRUTH
+ * -----------------------
+ * Stock is not a number anybody types. It is the running total of every
+ * recorded movement: goods received, a counter sale, a stock-take
+ * correction. getStock() adds the movements up.
  *
- *     base stock (data/products.ts)  +  every local movement since
+ * products/{id}.stock is kept in step as a DENORMALISED COPY, because
+ * the storefront renders on the server and cannot sum a ledger on every
+ * page view. The two are written in the same batch, so they cannot
+ * drift - if the batch fails, neither changes.
  *
- * which makes it impossible for the displayed figure to disagree with the
- * ledger explaining it. In production the product document WILL carry a
- * cached `stock` field, because summing a ledger of 50,000 rows on every
- * page load is not viable - but there the cache and the ledger are
- * written inside one atomic transaction, so they still cannot drift.
- *
- * KNOWN LIMITATION, stated plainly: movements recorded here live in this
- * browser only. The storefront and the POS render from data/products.ts
- * on the SERVER, so an adjustment made in admin will not change the stock
- * a customer sees. That divergence is not a bug in this code - it is
- * exactly the problem a shared database removes, and it is why the real
- * version of this must be server-side.
+ * Every movement still goes through applyStockChange(), which is the one
+ * place that decides whether a change is legal. Negative stock is
+ * refused there, not here.
  */
-interface InventoryContextValue {
-  /** Seed ledger plus everything recorded in this browser, newest last. */
-  transactions: InventoryTransaction[];
-  /** Live stock for one product. */
-  getStock: (productId: string) => number;
-  /** That product's movements, oldest first. */
-  getProductTransactions: (productId: string) => InventoryTransaction[];
-  /** Records a manual adjustment / damage / return. */
-  adjustStock: (input: StockAdjustmentInput) => StockChangeResult;
-  /**
-   * Records SEVERAL movements as one all-or-nothing batch.
-   *
-   * Built for receiving a purchase, which must add every line or none:
-   * a five-line delivery that stocks two products and then fails leaves
-   * a ledger that no longer explains the shelves.
-   *
-   * Every movement still goes through applyStockChange(), so this is
-   * not a second stock path - it is the same one, called in a loop that
-   * only commits if all of them pass.
-   */
-  recordMovements: (requests: StockChangeRequest[]) => BatchStockResult;
-  /** Discards local movements and returns to the seed ledger. */
-  resetToSeed: () => void;
-  /** Count of movements added in this browser. */
-  localMovementCount: number;
-  isHydrated: boolean;
-}
 
 export type BatchStockResult =
   | { ok: true; transactions: InventoryTransaction[] }
   | { ok: false; error: string };
 
+interface InventoryContextValue {
+  transactions: InventoryTransaction[];
+  getStock: (productId: string) => number;
+  getProductTransactions: (productId: string) => InventoryTransaction[];
+  adjustStock: (input: StockAdjustmentInput) => Promise<StockChangeResult>;
+  recordMovements: (requests: StockChangeRequest[]) => Promise<BatchStockResult>;
+  loading: boolean;
+  error: string | null;
+  isHydrated: boolean;
+}
+
 const InventoryContext = createContext<InventoryContextValue | null>(null);
 
-function readStoredTransactions(): InventoryTransaction[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (t): t is InventoryTransaction =>
-        typeof t === "object" &&
-        t !== null &&
-        typeof (t as InventoryTransaction).productId === "string" &&
-        typeof (t as InventoryTransaction).quantity === "number"
-    );
-  } catch {
-    return [];
-  }
+const TXN_TYPES: InventoryTransactionType[] = [
+  "INITIAL_STOCK", "PURCHASE", "SALE_ONLINE", "SALE_POS",
+  "RETURN", "DAMAGE", "ADJUSTMENT", "TRANSFER",
+];
+
+function mapTransaction(doc: QueryDocumentSnapshot): InventoryTransaction | null {
+  const d = doc.data();
+  if (typeof d.productId !== "string" || typeof d.quantity !== "number") return null;
+  return {
+    id: doc.id,
+    productId: d.productId,
+    productName: typeof d.productName === "string" ? d.productName : "",
+    productSku: typeof d.productSku === "string" ? d.productSku : "",
+    type: (TXN_TYPES.includes(d.type) ? d.type : "ADJUSTMENT") as InventoryTransactionType,
+    quantity: d.quantity,
+    previousStock: typeof d.previousStock === "number" ? d.previousStock : 0,
+    newStock: typeof d.newStock === "number" ? d.newStock : 0,
+    referenceId: typeof d.referenceId === "string" ? d.referenceId : undefined,
+    note: typeof d.note === "string" ? d.note : undefined,
+    createdBy: typeof d.createdBy === "string" ? d.createdBy : "",
+    createdAt: typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
+  };
 }
 
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
-  /** Only the LOCAL movements are stored; the seed is always recomputed. */
-  const [localTransactions, setLocalTransactions] = useState<InventoryTransaction[]>(
-    readStoredTransactions
-  );
-  const isHydrated = useIsHydrated();
+  const { user, loading: authLoading } = useAuth();
+  // CatalogProvider wraps this one, so the product is available to stamp
+  // its name and SKU onto the ledger row. That denormalisation is
+  // deliberate: a ledger entry must still read sensibly years later,
+  // even if the product was renamed or archived since.
+  const { getProduct } = useCatalog();
+  // The ledger exposes what the shop bought and when - owner/manager only.
+  const enabled = !authLoading && Boolean(user?.isStaff) && user?.role !== "CASHIER";
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(localTransactions));
-    } catch {
-      // Storage blocked or full - adjustments still work for this session.
-    }
-  }, [localTransactions]);
-
-  /**
-   * Base stock straight from the one product catalogue. There is no
-   * separate inventory product list - see data/products.ts.
-   */
-  const baseStock = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of products) map.set(p.id, p.stock);
-    return map;
-  }, []);
-
-  /** Net local change per product, so getStock is a lookup not a scan. */
-  const localDeltas = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const txn of localTransactions) {
-      map.set(txn.productId, (map.get(txn.productId) ?? 0) + txn.quantity);
-    }
-    return map;
-  }, [localTransactions]);
-
-  const getStock = useCallback(
-    (productId: string) => {
-      const base = baseStock.get(productId) ?? 0;
-      // Before hydration, local movements are unknown to the server
-      // render, so report the base figure and let the UI settle after.
-      if (!isHydrated) return base;
-      return base + (localDeltas.get(productId) ?? 0);
-    },
-    [baseStock, localDeltas, isHydrated]
+  const state = useFirestoreCollection<InventoryTransaction>(
+    COLLECTIONS.inventoryTransactions,
+    mapTransaction,
+    { enabled }
   );
 
   const transactions = useMemo(
-    () => (isHydrated ? [...seedInventoryTransactions, ...localTransactions] : seedInventoryTransactions),
-    [localTransactions, isHydrated]
+    () => [...state.items].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [state.items]
+  );
+
+  /** Running total per product, summed from the ledger. */
+  const stockByProduct = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of state.items) {
+      map.set(t.productId, (map.get(t.productId) ?? 0) + t.quantity);
+    }
+    return map;
+  }, [state.items]);
+
+  const getStock = useCallback(
+    (productId: string) => stockByProduct.get(productId) ?? 0,
+    [stockByProduct]
   );
 
   const getProductTransactions = useCallback(
-    (productId: string) =>
-      transactions
-        .filter((t) => t.productId === productId)
-        .sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        ),
+    (productId: string) => transactions.filter((t) => t.productId === productId),
     [transactions]
   );
 
   /**
-   * THE ONLY WAY STOCK CHANGES in this app.
+   * Writes a ledger row AND the denormalised product stock together.
    *
-   * It delegates every rule to applyStockChange() in lib/inventory-utils,
-   * then commits the result. Nothing else anywhere writes a stock figure,
-   * which is what makes "no negative stock" and "every movement has a
-   * transaction" actual guarantees rather than conventions.
+   * A batch, not two writes: a dropped connection between them would
+   * leave stock that no ledger row explains, and reconciling that by
+   * hand is exactly the situation a ledger exists to prevent.
    */
-  const adjustStock = useCallback(
-    (input: StockAdjustmentInput): StockChangeResult => {
-      const product = products.find((p) => p.id === input.productId);
-      if (!product) return { ok: false, error: "Product not found." };
-
-      if (!input.reason.trim()) {
-        return { ok: false, error: "A reason is required for every adjustment." };
-      }
-      if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
-        return { ok: false, error: "Enter a quantity greater than zero." };
-      }
-
-      // The dialog collects a positive number and a direction; the SIGN
-      // is applied here, once, so the ledger's invariant always holds.
-      const signed =
-        input.direction === "decrease" ? -input.quantity : input.quantity;
-
-      const request: StockChangeRequest = {
-        productId: product.id,
-        productName: product.name,
-        productSku: product.sku,
-        type: input.type,
-        quantity: signed,
-        note: input.reason.trim(),
-        createdBy: "Admin",
-      };
-
-      const result = applyStockChange(getStock(product.id), request);
-      if (!result.ok) return result;
-
-      setLocalTransactions((current) => [...current, result.transaction]);
-      return result;
-    },
-    [getStock]
-  );
-
-  /**
-   * Apply a batch, or nothing at all.
-   *
-   * Runs the whole set against a WORKING COPY of the stock figures
-   * first. Only if every line passes does it commit - so a purchase
-   * whose third line would drive stock negative adds none of its lines,
-   * rather than leaving the first two applied.
-   *
-   * The running tally matters: two lines for the same product in one
-   * purchase must see each other's effect, or the second would validate
-   * against a stale figure.
-   */
-  const recordMovements = useCallback(
-    (requests: StockChangeRequest[]): BatchStockResult => {
-      if (requests.length === 0) {
-        return { ok: false, error: "Nothing to record." };
-      }
-
-      const working = new Map<string, number>();
-      const built: InventoryTransaction[] = [];
+  const commitMovements = useCallback(
+    async (requests: StockChangeRequest[]): Promise<BatchStockResult> => {
+      const created: InventoryTransaction[] = [];
+      const operations: { collection: string; id: string; data: Record<string, unknown> }[] = [];
+      // Track running stock locally so several movements against the SAME
+      // product in one batch validate against each other, not against the
+      // starting figure.
+      const running = new Map<string, number>();
 
       for (const request of requests) {
-        const current =
-          working.get(request.productId) ?? getStock(request.productId);
+        const before = running.get(request.productId) ?? getStock(request.productId);
 
-        const result = applyStockChange(current, request);
-        if (!result.ok) {
-          // Abort before anything is committed.
-          return { ok: false, error: result.error };
-        }
+        // THE one place a stock change is judged legal. Negative stock is
+        // refused in there, not here.
+        const result = applyStockChange(before, request);
+        if (!result.ok) return { ok: false, error: result.error };
 
-        working.set(request.productId, result.newStock);
-        built.push(result.transaction);
+        running.set(request.productId, result.newStock);
+        created.push(result.transaction);
+
+        operations.push({
+          collection: COLLECTIONS.inventoryTransactions,
+          id: result.transaction.id,
+          data: result.transaction as unknown as Record<string, unknown>,
+        });
+        // The denormalised copy the storefront reads, written in the SAME
+        // batch so it cannot drift from the ledger.
+        operations.push({
+          collection: COLLECTIONS.products,
+          id: request.productId,
+          data: { stock: result.newStock },
+        });
       }
 
-      setLocalTransactions((current) => [...current, ...built]);
-      return { ok: true, transactions: built };
+      try {
+        await writeBatchDocs(operations);
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not save the movement.",
+        };
+      }
+
+      return { ok: true, transactions: created };
     },
     [getStock]
   );
 
-  const resetToSeed = useCallback(() => setLocalTransactions([]), []);
+  const adjustStock = useCallback(
+    async (input: StockAdjustmentInput): Promise<StockChangeResult> => {
+      if (!input.reason.trim()) {
+        return {
+          ok: false,
+          error: "Give a reason - an adjustment with no reason is an unexplained hole.",
+        };
+      }
+
+      const signed =
+        input.direction === "decrease"
+          ? -Math.abs(input.quantity)
+          : Math.abs(input.quantity);
+
+      const product = getProduct(input.productId);
+
+      const result = await commitMovements([
+        {
+          productId: input.productId,
+          productName: product?.name ?? "",
+          productSku: product?.sku ?? "",
+          type: input.type,
+          quantity: signed,
+          note: input.reason.trim(),
+          createdBy: user?.displayName ?? user?.email ?? "Admin",
+        },
+      ]);
+
+      if (!result.ok) return { ok: false, error: result.error };
+      const txn = result.transactions[0];
+      return { ok: true, transaction: txn, newStock: txn.newStock };
+    },
+    [commitMovements, user, getProduct]
+  );
+
+  const recordMovements = useCallback(
+    (requests: StockChangeRequest[]) => commitMovements(requests),
+    [commitMovements]
+  );
 
   const value = useMemo(
     () => ({
@@ -251,25 +220,17 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       getProductTransactions,
       adjustStock,
       recordMovements,
-      resetToSeed,
-      localMovementCount: isHydrated ? localTransactions.length : 0,
-      isHydrated,
+      loading: state.loading,
+      error: state.error,
+      isHydrated: !state.loading,
     }),
     [
-      transactions,
-      getStock,
-      getProductTransactions,
-      adjustStock,
-      recordMovements,
-      resetToSeed,
-      localTransactions.length,
-      isHydrated,
+      transactions, getStock, getProductTransactions, adjustStock,
+      recordMovements, state.loading, state.error,
     ]
   );
 
-  return (
-    <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>
-  );
+  return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }
 
 export function useInventory(): InventoryContextValue {

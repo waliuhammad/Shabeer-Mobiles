@@ -123,8 +123,8 @@ export function NewPurchaseView() {
     setError(null);
   }
 
-  function handleSave() {
-    const result = createPurchase({
+  async function handleSave() {
+    const result = await createPurchase({
       supplierId,
       items,
       discount,

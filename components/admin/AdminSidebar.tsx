@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Smartphone, Store, ShieldAlert } from "lucide-react";
+import { Smartphone, Store } from "lucide-react";
 import { AdminNavLinks } from "@/components/admin/AdminNavLinks";
 import { BUSINESS } from "@/lib/constants";
 
@@ -38,14 +38,6 @@ export function AdminSidebar() {
 
       {/* --- Footer --- */}
       <div className="shrink-0 border-t border-sidebar-border p-3">
-        <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-sidebar-accent/40 p-2 text-[10px] leading-relaxed text-sidebar-foreground/70">
-          <ShieldAlert
-            className="mt-px size-3 shrink-0 text-sidebar-primary"
-            aria-hidden="true"
-          />
-          Demo data. No authentication or database is connected yet.
-        </p>
-
         <Link
           href="/"
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"

@@ -66,7 +66,7 @@ export function POSCustomerPanel({ customerId, onChange }: POSCustomerPanelProps
     setQuery("");
   }
 
-  function handleCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     // The SAME validator the admin customer form uses, so a customer
@@ -78,15 +78,21 @@ export function POSCustomerPanel({ customerId, onChange }: POSCustomerPanelProps
       return;
     }
 
-    const created = createCustomer({
-      name: draft.name.trim(),
-      phone: draft.phone.trim(),
-      email: draft.email.trim(),
-      address: draft.address.trim(),
-      city: "Multan",
-      notes: "Created at the counter during a sale.",
-      status: "ACTIVE",
-    });
+    let created;
+    try {
+      created = await createCustomer({
+        name: draft.name.trim(),
+        phone: draft.phone.trim(),
+        email: draft.email.trim(),
+        address: draft.address.trim(),
+        city: "Multan",
+        notes: "Created at the counter during a sale.",
+        status: "ACTIVE",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the customer.");
+      return;
+    }
 
     // Newly created customer becomes the selected one immediately - the
     // cashier should not have to go and find them.
@@ -312,8 +318,8 @@ export function POSCustomerPanel({ customerId, onChange }: POSCustomerPanelProps
 
             <p className="rounded-md bg-muted/60 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
               This customer joins the shop&apos;s central list - the same one
-              /admin/customers shows. Demo only: it is stored in this browser
-              until Firebase is connected.
+              /admin/customers shows, and it is saved to the database
+              immediately.
             </p>
 
             <DialogFooter>

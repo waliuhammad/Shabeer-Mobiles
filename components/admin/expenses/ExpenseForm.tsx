@@ -88,7 +88,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
     setErrors(onlyTouched(validateExpense(data), nextTouched));
   };
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const found = validateExpense(data);
@@ -98,23 +98,29 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
       return;
     }
 
-    if (isEdit && expense) {
-      const updated = updateExpense(expense.id, data);
-      if (!updated) {
-        // The only way this returns undefined is a cancelled expense,
-        // which the route guards against - but the form must not claim
-        // success for a write that did not happen.
-        toast.error("This expense is cancelled and can no longer be edited.");
+    try {
+      if (isEdit && expense) {
+        const updated = await updateExpense(expense.id, data);
+        if (!updated) {
+          // The only way this returns undefined is a cancelled expense,
+          // which the route guards against - but the form must not claim
+          // success for a write that did not happen.
+          toast.error("This expense is cancelled and can no longer be edited.");
+          return;
+        }
+        toast.success("Expense updated.", { description: updated.title });
+        router.push(`/admin/expenses/${expense.id}`);
         return;
       }
-      toast.success("Expense updated.", { description: updated.title });
-      router.push(`/admin/expenses/${expense.id}`);
-      return;
-    }
 
-    const created = createExpense(data);
-    toast.success("Expense recorded.", { description: created.title });
-    router.push(`/admin/expenses/${created.id}`);
+      const created = await createExpense(data);
+      toast.success("Expense recorded.", { description: created.title });
+      router.push(`/admin/expenses/${created.id}`);
+    } catch (error) {
+      toast.error("Could not save.", {
+        description: error instanceof Error ? error.message : "Unknown error.",
+      });
+    }
   }
 
   return (

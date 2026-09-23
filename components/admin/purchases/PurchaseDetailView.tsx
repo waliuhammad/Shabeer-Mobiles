@@ -60,8 +60,8 @@ export function PurchaseDetailView({ purchaseId }: PurchaseDetailViewProps) {
   const receivable = canReceivePurchase(purchase);
   const cancellable = canCancelPurchase(purchase);
 
-  function handleReceive() {
-    const result = receivePurchase(purchase!.id);
+  async function handleReceive() {
+    const result = await receivePurchase(purchase!.id);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -73,8 +73,8 @@ export function PurchaseDetailView({ purchaseId }: PurchaseDetailViewProps) {
     setError(null);
   }
 
-  function handleCancel() {
-    const result = cancelPurchase(purchase!.id);
+  async function handleCancel() {
+    const result = await cancelPurchase(purchase!.id);
     if (!result.ok) {
       setError(result.error);
       return;

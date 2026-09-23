@@ -4,14 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
 } from "react";
-import { mockSuppliers } from "@/data/mock-suppliers";
-import { mockPurchases } from "@/data/mock-purchases";
 import { useInventory } from "@/context/InventoryContext";
-import { useIsHydrated } from "@/hooks/use-is-hydrated";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { writeDoc } from "@/lib/firebase/write";
+import { useAuth } from "@/context/AuthContext";
 import {
   calculatePurchaseTotals,
   canCancelPurchase,
@@ -27,8 +26,6 @@ import type {
   SupplierFormData,
 } from "@/types";
 
-const SUPPLIERS_KEY = "shabbir-mobiles:suppliers:v1";
-const PURCHASES_KEY = "shabbir-mobiles:purchases:v1";
 
 /**
  * Suppliers and purchases, plus the receiving operation.
@@ -65,8 +62,8 @@ interface PurchasingContextValue {
   getPurchase: (id: string) => Purchase | undefined;
   getSupplierPurchases: (supplierId: string) => Purchase[];
 
-  createSupplier: (data: SupplierFormData) => Supplier;
-  updateSupplier: (id: string, data: SupplierFormData) => Supplier | undefined;
+  createSupplier: (data: SupplierFormData) => Promise<Supplier>;
+  updateSupplier: (id: string, data: SupplierFormData) => Promise<Supplier | undefined>;
 
   createPurchase: (input: {
     supplierId: string;
@@ -75,77 +72,65 @@ interface PurchasingContextValue {
     paidAmount: number;
     paymentMethod: PurchasePaymentMethod;
     notes: string;
-  }) => PurchaseActionResult;
+  }) => Promise<PurchaseActionResult>;
 
   /** DRAFT -> RECEIVED, and moves stock. */
-  receivePurchase: (id: string) => PurchaseActionResult;
+  receivePurchase: (id: string) => Promise<PurchaseActionResult>;
   /** DRAFT -> CANCELLED. Never allowed on a received purchase. */
-  cancelPurchase: (id: string) => PurchaseActionResult;
+  cancelPurchase: (id: string) => Promise<PurchaseActionResult>;
 
-  resetPurchasing: () => void;
-  localChangeCount: number;
+  loading: boolean;
+  error: string | null;
   isHydrated: boolean;
 }
 
 const PurchasingContext = createContext<PurchasingContextValue | null>(null);
 
-function readStored<T>(key: string): T[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 export function PurchasingProvider({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const { recordMovements } = useInventory();
-  const isHydrated = useIsHydrated();
 
-  /** Suppliers added in this browser, on top of the shared seed. */
-  const [localSuppliers, setLocalSuppliers] = useState<Supplier[]>(() =>
-    readStored<Supplier>(SUPPLIERS_KEY)
+  // Supplier prices are cost data - owner and manager only.
+  const enabled = !authLoading && Boolean(user?.isStaff) && user?.role !== "CASHIER";
+
+  const suppliersState = useFirestoreCollection<Supplier>(
+    COLLECTIONS.suppliers,
+    (doc) => {
+      const d = doc.data();
+      if (typeof d.name !== "string") return null;
+      const supplier: Supplier = {
+        id: doc.id,
+        name: d.name,
+        contactPerson: typeof d.contactPerson === "string" ? d.contactPerson : "",
+        phone: typeof d.phone === "string" ? d.phone : "",
+        email: typeof d.email === "string" ? d.email : "",
+        address: typeof d.address === "string" ? d.address : "",
+        city: typeof d.city === "string" ? d.city : "",
+        notes: typeof d.notes === "string" ? d.notes : "",
+        status: d.status === "inactive" ? "inactive" : "active",
+        createdAt: typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
+        updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : new Date(0).toISOString(),
+      };
+      return supplier;
+    },
+    { enabled }
   );
-  /**
-   * Purchases created OR changed here. A changed seed purchase is stored
-   * whole, and shadows the seed by id, so receiving PUR-0005 survives a
-   * refresh without copying the other six.
-   */
-  const [localPurchases, setLocalPurchases] = useState<Purchase[]>(() =>
-    readStored<Purchase>(PURCHASES_KEY)
+
+  const purchasesState = useFirestoreCollection<Purchase>(
+    COLLECTIONS.purchases,
+    (doc) => {
+      const d = doc.data();
+      if (typeof d.purchaseNumber !== "string" || !Array.isArray(d.items)) return null;
+      return { ...(d as object), id: doc.id } as Purchase;
+    },
+    { enabled }
   );
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(localSuppliers));
-      window.localStorage.setItem(PURCHASES_KEY, JSON.stringify(localPurchases));
-    } catch {
-      // Storage blocked or full - still works for this session.
-    }
-  }, [localSuppliers, localPurchases]);
-
-  const suppliers = useMemo(() => {
-    if (!isHydrated) return mockSuppliers;
-    return [...mockSuppliers, ...localSuppliers.filter((s) => !mockSuppliers.some((m) => m.id === s.id))]
-      .map((s) => localSuppliers.find((l) => l.id === s.id) ?? s)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [localSuppliers, isHydrated]);
-
-  const purchases = useMemo(() => {
-    if (!isHydrated) return mockPurchases;
-    const overridden = mockPurchases.map(
-      (p) => localPurchases.find((l) => l.id === p.id) ?? p
-    );
-    const brandNew = localPurchases.filter(
-      (l) => !mockPurchases.some((m) => m.id === l.id)
-    );
-    return [...brandNew, ...overridden].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }, [localPurchases, isHydrated]);
+  const suppliers = suppliersState.items;
+  const purchases = useMemo(
+    () => [...purchasesState.items].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [purchasesState.items]
+  );
 
   const getSupplier = useCallback(
     (id: string) => suppliers.find((s) => s.id === id),
@@ -162,14 +147,11 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
   );
 
   /** Upsert helper - a changed seed purchase shadows it by id. */
-  const upsertPurchase = useCallback((purchase: Purchase) => {
-    setLocalPurchases((current) => [
-      ...current.filter((p) => p.id !== purchase.id),
-      purchase,
-    ]);
+  const upsertPurchase = useCallback(async (purchase: Purchase) => {
+    await writeDoc(COLLECTIONS.purchases, purchase.id, purchase);
   }, []);
 
-  const createSupplier = useCallback((data: SupplierFormData): Supplier => {
+  const createSupplier = useCallback(async (data: SupplierFormData): Promise<Supplier> => {
     const now = new Date().toISOString();
     const supplier: Supplier = {
       id: `sup-${Date.now().toString(36)}`,
@@ -177,12 +159,12 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
       createdAt: now,
       updatedAt: now,
     };
-    setLocalSuppliers((current) => [...current, supplier]);
+    await writeDoc(COLLECTIONS.suppliers, supplier.id, supplier);
     return supplier;
   }, []);
 
   const updateSupplier = useCallback(
-    (id: string, data: SupplierFormData): Supplier | undefined => {
+    async (id: string, data: SupplierFormData): Promise<Supplier | undefined> => {
       const existing = suppliers.find((s) => s.id === id);
       if (!existing) return undefined;
 
@@ -191,10 +173,7 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
         ...data,
         updatedAt: new Date().toISOString(),
       };
-      setLocalSuppliers((current) => [
-        ...current.filter((s) => s.id !== id),
-        updated,
-      ]);
+      await writeDoc(COLLECTIONS.suppliers, id, updated);
       return updated;
     },
     [suppliers]
@@ -207,14 +186,14 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
    * the boxes in, and that is a separate, deliberate action.
    */
   const createPurchase = useCallback(
-    (input: {
+    async (input: {
       supplierId: string;
       items: PurchaseDraftItem[];
       discount: number;
       paidAmount: number;
       paymentMethod: PurchasePaymentMethod;
       notes: string;
-    }): PurchaseActionResult => {
+    }): Promise<PurchaseActionResult> => {
       const supplier = getSupplier(input.supplierId);
       if (!supplier) return { ok: false, error: "Choose a supplier." };
       if (input.items.length === 0) {
@@ -264,7 +243,7 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
         inventoryTransactionIds: [],
       };
 
-      upsertPurchase(purchase);
+      await upsertPurchase(purchase);
       return { ok: true, purchase };
     },
     [getSupplier, purchases, upsertPurchase]
@@ -283,7 +262,7 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
    * batch failed.
    */
   const receivePurchase = useCallback(
-    (id: string): PurchaseActionResult => {
+    async (id: string): Promise<PurchaseActionResult> => {
       const purchase = getPurchase(id);
       if (!purchase) return { ok: false, error: "Purchase not found." };
 
@@ -310,10 +289,13 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
         // stock go up by 20?" and get "because of PUR-0005".
         referenceId: purchase.purchaseNumber,
         note: `Received from ${purchase.supplierName}`,
-        createdBy: "Admin",
+        createdBy: user?.displayName ?? user?.email ?? "Admin",
       }));
 
-      const result = recordMovements(requests);
+      // Stock and the ledger are written first. Only if that succeeds is
+      // the purchase marked received - the other order would leave a
+      // purchase claiming stock that never arrived.
+      const result = await recordMovements(requests);
       if (!result.ok) return { ok: false, error: result.error };
 
       const now = new Date().toISOString();
@@ -322,13 +304,13 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
         status: "RECEIVED",
         receivedAt: now,
         updatedAt: now,
-        inventoryTransactionIds: result.transactions.map((t) => t.id),
+        inventoryTransactionIds: result.transactions.map((t: { id: string }) => t.id),
       };
 
-      upsertPurchase(received);
+      await upsertPurchase(received);
       return { ok: true, purchase: received };
     },
-    [getPurchase, recordMovements, upsertPurchase]
+    [getPurchase, recordMovements, upsertPurchase, user]
   );
 
   /**
@@ -340,7 +322,7 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
    * ledger entry - a later feature.
    */
   const cancelPurchase = useCallback(
-    (id: string): PurchaseActionResult => {
+    async (id: string): Promise<PurchaseActionResult> => {
       const purchase = getPurchase(id);
       if (!purchase) return { ok: false, error: "Purchase not found." };
 
@@ -359,16 +341,11 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
         status: "CANCELLED",
         updatedAt: new Date().toISOString(),
       };
-      upsertPurchase(cancelled);
+      await upsertPurchase(cancelled);
       return { ok: true, purchase: cancelled };
     },
     [getPurchase, upsertPurchase]
   );
-
-  const resetPurchasing = useCallback(() => {
-    setLocalSuppliers([]);
-    setLocalPurchases([]);
-  }, []);
 
   const value = useMemo(
     () => ({
@@ -382,11 +359,9 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
       createPurchase,
       receivePurchase,
       cancelPurchase,
-      resetPurchasing,
-      localChangeCount: isHydrated
-        ? localSuppliers.length + localPurchases.length
-        : 0,
-      isHydrated,
+      loading: suppliersState.loading || purchasesState.loading,
+      error: suppliersState.error ?? purchasesState.error,
+      isHydrated: !(suppliersState.loading || purchasesState.loading),
     }),
     [
       suppliers,
@@ -399,10 +374,10 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
       createPurchase,
       receivePurchase,
       cancelPurchase,
-      resetPurchasing,
-      localSuppliers.length,
-      localPurchases.length,
-      isHydrated,
+      suppliersState.loading,
+      suppliersState.error,
+      purchasesState.loading,
+      purchasesState.error,
     ]
   );
 

@@ -1,15 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { Receipt, ArrowRight, Store, Globe } from "lucide-react";
-import { recentSales } from "@/data/admin";
 import { formatPrice, cn } from "@/lib/utils";
-import type { SaleStatus, SalesChannelId } from "@/types";
-
-const STATUS_STYLES: Record<SaleStatus, { label: string; className: string }> = {
-  paid: { label: "Paid", className: "bg-success/10 text-success" },
-  pending: { label: "Pending", className: "bg-warning/15 text-gold-deep" },
-  processing: { label: "Processing", className: "bg-cyan-soft text-secondary" },
-  refunded: { label: "Refunded", className: "bg-destructive/10 text-destructive" },
-};
+import { useMemo } from "react";
+import { useOrders } from "@/context/OrdersContext";
+import { useInvoices } from "@/context/InvoicesContext";
+import { getRevenueEntries } from "@/lib/finance-utils";
+import { formatOrderDate } from "@/lib/order-utils";
+import type { SalesChannelId } from "@/types";
 
 const CHANNEL_STYLES: Record<
   SalesChannelId,
@@ -40,6 +39,32 @@ const CHANNEL_STYLES: Record<
  * A Server Component.
  */
 export function RecentSalesTable() {
+  const { orders } = useOrders();
+  const { invoices } = useInvoices();
+
+  /**
+   * The six most recent completed sales, from the SAME source as
+   * /admin/revenue. This used to be a fixed array that agreed with
+   * nothing on the page.
+   */
+  const recentSales = useMemo(
+    () =>
+      getRevenueEntries(orders, invoices).slice(0, 6).map((e) => ({
+        reference: e.reference,
+        customerId: e.customerId,
+        customerName: e.customerName,
+        channel: (e.channel === "POS" ? "physical" : "online") as SalesChannelId,
+        amount: e.revenue,
+        date: formatOrderDate(e.at),
+        // The finance layer already decided the wording and the colour,
+        // so the badge below does not need a second status map that
+        // could disagree with it.
+        statusLabel: e.paymentLabel,
+        statusClass: e.paymentClass,
+      })),
+    [orders, invoices]
+  );
+
   return (
     <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 sm:px-5">
@@ -87,7 +112,14 @@ export function RecentSalesTable() {
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">{sale.date}</td>
                 <td className="px-5 py-3 text-right">
-                  <StatusBadge status={sale.status} />
+                  <span
+                    className={cn(
+                      "inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                      sale.statusClass
+                    )}
+                  >
+                    {sale.statusLabel}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -106,7 +138,14 @@ export function RecentSalesTable() {
                   {sale.customerName} &middot; {sale.date}
                 </p>
               </div>
-              <StatusBadge status={sale.status} />
+              <span
+                    className={cn(
+                      "inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                      sale.statusClass
+                    )}
+                  >
+                    {sale.statusLabel}
+                  </span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <ChannelBadge channel={sale.channel} />
@@ -118,20 +157,6 @@ export function RecentSalesTable() {
         ))}
       </ul>
     </section>
-  );
-}
-
-function StatusBadge({ status }: { status: SaleStatus }) {
-  const { label, className } = STATUS_STYLES[status];
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
-        className
-      )}
-    >
-      {label}
-    </span>
   );
 }
 

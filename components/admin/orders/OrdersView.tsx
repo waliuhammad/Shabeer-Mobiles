@@ -9,7 +9,6 @@ import {
   XCircle,
   Search,
   X,
-  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,7 +49,7 @@ import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/types";
  * customer account list and the tracking page render. No admin-only copy.
  */
 export function OrdersView() {
-  const { orders, localChangeCount, resetChanges } = useOrders();
+  const { orders } = useOrders();
   const [filters, setFilters] = useState<OrderFilterState>(EMPTY_ORDER_FILTERS);
 
   const set = <K extends keyof OrderFilterState>(
@@ -225,27 +224,6 @@ export function OrdersView() {
         <OrderTable orders={visible} />
       </div>
 
-      {/* Demo escape hatch - clears admin changes, never the seed data. */}
-      {localChangeCount > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs">
-          <p className="text-foreground">
-            <strong className="font-semibold">{localChangeCount}</strong>{" "}
-            {localChangeCount === 1 ? "order has" : "orders have"} been changed in
-            this browser. Those changes do not reach the customer&apos;s tracking
-            page.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={resetChanges}
-            className="h-8 gap-1.5 bg-background px-3 text-xs"
-          >
-            <RotateCcw className="size-3.5" aria-hidden="true" />
-            Reset demo data
-          </Button>
-        </div>
-      )}
     </>
   );
 }

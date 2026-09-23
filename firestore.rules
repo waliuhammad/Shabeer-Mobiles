@@ -14,12 +14,11 @@ rules_version = '2';
  * win - and that is the point.
  * ================================================================
  *
- * NOTE ON STATE: as of the authentication step, the app still reads its
- * data from data/*.ts and localStorage. No collection below is being
- * used yet. These rules are written now, ahead of the data migration,
- * so the shape of the permissions is agreed before anything relies on
- * it - and so that deploying the migration cannot accidentally ship an
- * open database.
+ * NOTE ON STATE: these rules are LIVE. Products, categories, costs,
+ * customers, orders, invoices, expenses, suppliers, purchases and the
+ * inventory ledger are all read and written through them from the
+ * browser, so every rule below is evaluated on every save. A rule that
+ * is wrong here shows up as a refused write, not as a silent hole.
  *
  * DEPLOY WITH:  firebase deploy --only firestore:rules
  */
@@ -126,20 +125,25 @@ service cloud.firestore {
     /**
      * A shopper reads their own orders. Staff read all of them.
      *
-     * WRITES ARE SERVER-ONLY. `allow write: if false` blocks every
-     * client, including a signed-in staff member, because an order's
-     * total, its stock movements and its cost snapshot must all be
-     * computed by trusted code in one transaction. A browser that can
+     * WRITES ARE STAFF-ONLY, AND THAT IS A COMPROMISE.
+     *
+     * The correct end state is `allow write: if false` with every order
+     * mutation going through a trusted server action, because an order's
+     * total, its stock movements and its cost snapshot must be computed
+     * together by code the customer cannot reach. A browser that can
      * write an order is a browser that can set total = 0.
      *
-     * The admin order screens will go through a Cloud Function or a
-     * Next.js server action using the Admin SDK, which bypasses these
-     * rules by design.
+     * Today the admin screens write directly, so the rule permits staff.
+     * A shopper still cannot write - only read their own order - so the
+     * exposure is limited to staff, who are trusted people with
+     * accounts. Moving these writes server-side is the next security
+     * task, and this comment is the reminder.
      */
     match /orders/{orderId} {
       allow read: if isStaff() ||
                      (signedIn() && resource.data.customerId == request.auth.uid);
-      allow write: if false;
+      allow create, update: if isStaff();
+      allow delete: if false;
     }
 
     /* ============ COUNTER SALES ============ */
@@ -155,7 +159,13 @@ service cloud.firestore {
      */
     match /invoices/{invoiceId} {
       allow read: if isOwnerOrManager();
-      allow write: if false;
+      // A cashier CREATES sales but cannot read the history back - the
+      // lines carry purchasePrice, so browsing them would hand over the
+      // shop's margins. Create-only is exactly the access a till needs.
+      allow create: if isStaff();
+      // A completed sale is never edited. Correcting one means issuing a
+      // return, which this project does not model yet.
+      allow update, delete: if false;
     }
 
     /* ============ INVENTORY ============ */
@@ -170,12 +180,26 @@ service cloud.firestore {
      */
     match /inventory/{productId} {
       allow read: if isStaff();
-      allow write: if false;
+      allow write: if isOwnerOrManager();
     }
 
+    /**
+     * THE LEDGER. Append-only.
+     *
+     * create is allowed so the admin can receive purchases and record
+     * stock counts. update and delete are refused outright, and that is
+     * the part that matters: a movement, once recorded, cannot be
+     * rewritten or made to disappear. An auditable history is one nobody
+     * can quietly edit.
+     *
+     * Ideally creation would be server-side too, so the quantity and the
+     * resulting balance are computed by trusted code rather than sent by
+     * a browser. Same follow-up task as orders.
+     */
     match /inventoryTransactions/{txnId} {
       allow read: if isOwnerOrManager();
-      allow write: if false;
+      allow create: if isOwnerOrManager();
+      allow update, delete: if false;
     }
 
     /* ============ PURCHASING ============ */
@@ -188,8 +212,11 @@ service cloud.firestore {
 
     match /purchases/{purchaseId} {
       allow read: if isOwnerOrManager();
-      // Receiving a purchase moves stock, so it must be a server action.
-      allow create, update: if false;
+      // Receiving a purchase moves stock. That should eventually be one
+      // server-side transaction; for now the client writes the ledger
+      // row and the purchase together in a batch, which is atomic but
+      // still browser-supplied.
+      allow create, update: if isOwnerOrManager();
       allow delete: if false;
     }
 

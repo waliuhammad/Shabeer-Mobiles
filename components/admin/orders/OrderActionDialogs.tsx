@@ -53,14 +53,14 @@ export function UpdateStatusDialog({
   const [next, setNext] = useState<OrderStatus | "">("");
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!next) {
       setError("Choose the new status.");
       return;
     }
 
-    const result = updateOrderStatus(order.orderNumber, next);
+    const result = await updateOrderStatus(order.orderNumber, next);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -181,14 +181,14 @@ export function UpdatePaymentDialog({
   const [next, setNext] = useState<PaymentStatus | "">("");
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!next) {
       setError("Choose the new payment status.");
       return;
     }
 
-    const result = updatePaymentStatus(order.orderNumber, next);
+    const result = await updatePaymentStatus(order.orderNumber, next);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -275,8 +275,8 @@ export function CancelOrderDialog({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function handleConfirm() {
-    const result = cancelOrder(order.orderNumber, reason);
+  async function handleConfirm() {
+    const result = await cancelOrder(order.orderNumber, reason);
     if (!result.ok) {
       setError(result.error);
       return;

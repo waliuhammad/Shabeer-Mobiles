@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { AlertTriangle, ArrowRight } from "lucide-react";
-import { lowStockProducts } from "@/data/admin";
 import { cn } from "@/lib/utils";
+import { useMemo } from "react";
+import { useCatalog } from "@/context/CatalogContext";
+import { useInventory } from "@/context/InventoryContext";
+import { getStockLevel } from "@/lib/stock";
 import type { StockLevel } from "@/types";
 
 /**
@@ -33,6 +38,31 @@ const LEVELS: Record<StockLevel, { label: string; className: string }> = {
  * A Server Component.
  */
 export function LowStockTable() {
+  const { products } = useCatalog();
+  const { getStock } = useInventory();
+
+  // Real stock, from the ledger, against each product's own threshold.
+  const lowStockProducts = useMemo(
+    () =>
+      products
+        .filter((p) => p.status !== "archived")
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          stock: getStock(p.id),
+          lowStockThreshold: p.lowStockThreshold,
+          level: getStockLevel(getStock(p.id), p.lowStockThreshold),
+        }))
+        // getStockLevel returns null for healthy stock, so this both
+        // filters the list AND narrows the type for the badge below.
+        .filter(
+          (r): r is typeof r & { level: StockLevel } => r.level !== null
+        )
+        .slice(0, 6),
+    [products, getStock]
+  );
+
   return (
     <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 sm:px-5">

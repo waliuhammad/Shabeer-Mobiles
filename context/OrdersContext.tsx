@@ -1,45 +1,45 @@
 "use client";
 
+import { createContext, useCallback, useContext, useMemo } from "react";
+import type { QueryDocumentSnapshot } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { writeDoc } from "@/lib/firebase/write";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { demoOrders } from "@/data/orders";
-import { canTransitionOrderStatus, ORDER_STATUS_CONFIG, PAYMENT_STATUS_CONFIG } from "@/lib/order-status";
-import { useIsHydrated } from "@/hooks/use-is-hydrated";
-import type { Order, OrderActivity, OrderStatus, PaymentStatus } from "@/types";
-
-const STORAGE_KEY = "shabbir-mobiles:order-changes:v1";
+  ORDER_STATUS_CONFIG,
+  PAYMENT_STATUS_CONFIG,
+  canTransitionOrderStatus,
+} from "@/lib/order-status";
+import { useAuth } from "@/context/AuthContext";
+import type {
+  Order,
+  OrderActivity,
+  OrderItem,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+} from "@/types";
 
 /**
- * Admin-side order state.
+ * Online orders - live Firestore.
  *
- * WHAT IS STORED: only the CHANGES an admin makes, keyed by order
- * number - not a whole second copy of the order list. The seed data in
- * data/orders.ts stays the single source for everything else, so the
- * admin, the customer account and the tracking page all read the same
- * orders and cannot drift.
+ * The status rules are unchanged: a transition still has to be legal
+ * according to lib/order-status.ts, and the activity trail still records
+ * every change. What has changed is where the result goes - the
+ * database, so the shop machine and the owner's laptop agree.
  *
- *     demoOrders (shared)  +  local changes (admin browser)  =  what admin sees
+ * THE REAL FIX THIS STILL NEEDS
+ * -----------------------------
+ * firestore.rules currently says `allow write: if false` on orders, so
+ * these writes will be REFUSED until order mutations move to a trusted
+ * server action. That is deliberate and it is the correct end state: an
+ * order's total, its stock movements and its cost snapshot must be
+ * computed together by code the customer cannot reach. A browser that
+ * can write an order is a browser that can set total = 0.
  *
- * KNOWN LIMITATION, stated plainly: changes live in this browser. A
- * status moved to Shipped here does NOT reach the customer's tracking
- * page, because that renders from the shared seed on the server. That
- * divergence is not a bug in this code - it is precisely the problem a
- * shared database solves, and it is why the real version must be
- * server-side with Firestore listeners on both ends.
+ * Until then the rule is relaxed for staff - see firestore.rules - and
+ * this comment is the reminder of what has to replace it.
  */
-interface OrderChange {
-  status?: OrderStatus;
-  paymentStatus?: PaymentStatus;
-  updatedAt: string;
-  /** Entries appended since the seed. */
-  activity: OrderActivity[];
-}
 
 export type OrderUpdateResult =
   | { ok: true; order: Order }
@@ -48,122 +48,126 @@ export type OrderUpdateResult =
 interface OrdersContextValue {
   orders: Order[];
   getOrder: (orderNumber: string) => Order | undefined;
-  updateOrderStatus: (orderNumber: string, next: OrderStatus) => OrderUpdateResult;
+  updateOrderStatus: (orderNumber: string, next: OrderStatus) => Promise<OrderUpdateResult>;
   updatePaymentStatus: (
     orderNumber: string,
     next: PaymentStatus
-  ) => OrderUpdateResult;
-  cancelOrder: (orderNumber: string, reason: string) => OrderUpdateResult;
-  /** Discards admin changes and returns to the shared seed. */
-  resetChanges: () => void;
-  localChangeCount: number;
+  ) => Promise<OrderUpdateResult>;
+  cancelOrder: (orderNumber: string, reason: string) => Promise<OrderUpdateResult>;
+  loading: boolean;
+  error: string | null;
   isHydrated: boolean;
 }
 
 const OrdersContext = createContext<OrdersContextValue | null>(null);
 
-function readStoredChanges(): Record<string, OrderChange> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return {};
-    }
-    return parsed as Record<string, OrderChange>;
-  } catch {
-    return {};
-  }
+function mapItem(raw: unknown): OrderItem | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const i = raw as Record<string, unknown>;
+  if (typeof i.productId !== "string" || typeof i.quantity !== "number") return null;
+  return {
+    productId: i.productId,
+    name: typeof i.name === "string" ? i.name : "",
+    slug: typeof i.slug === "string" ? i.slug : "",
+    sku: typeof i.sku === "string" ? i.sku : "",
+    image: typeof i.image === "string" ? i.image : null,
+    price: typeof i.price === "number" ? i.price : 0,
+    quantity: i.quantity,
+    purchasePrice: typeof i.purchasePrice === "number" ? i.purchasePrice : 0,
+  };
 }
 
-function makeActivity(message: string, by = "Admin"): OrderActivity {
+function mapActivity(raw: unknown): OrderActivity | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const a = raw as Record<string, unknown>;
+  if (typeof a.message !== "string") return null;
   return {
-    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    at: new Date().toISOString(),
-    message,
-    by,
+    id: typeof a.id === "string" ? a.id : `act-${Math.random().toString(36).slice(2)}`,
+    at: typeof a.at === "string" ? a.at : new Date(0).toISOString(),
+    message: a.message,
+    by: typeof a.by === "string" ? a.by : "System",
+  };
+}
+
+const ORDER_STATUSES: OrderStatus[] = [
+  "pending", "confirmed", "processing", "ready",
+  "shipped", "out-for-delivery", "delivered", "cancelled", "returned",
+];
+
+function mapOrder(doc: QueryDocumentSnapshot): Order | null {
+  const d = doc.data();
+  if (typeof d.orderNumber !== "string" || !Array.isArray(d.items)) return null;
+  return {
+    orderNumber: d.orderNumber,
+    placedAt: typeof d.placedAt === "string" ? d.placedAt : new Date(0).toISOString(),
+    updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : new Date(0).toISOString(),
+    customerId: typeof d.customerId === "string" ? d.customerId : null,
+    customerName: typeof d.customerName === "string" ? d.customerName : "",
+    phone: typeof d.phone === "string" ? d.phone : "",
+    email: typeof d.email === "string" ? d.email : "",
+    address: typeof d.address === "string" ? d.address : "",
+    city: typeof d.city === "string" ? d.city : "",
+    postalCode: typeof d.postalCode === "string" ? d.postalCode : "",
+    notes: typeof d.notes === "string" ? d.notes : "",
+    internalNote: typeof d.internalNote === "string" ? d.internalNote : "",
+    items: d.items.map(mapItem).filter((i): i is OrderItem => i !== null),
+    subtotal: typeof d.subtotal === "number" ? d.subtotal : 0,
+    discount: typeof d.discount === "number" ? d.discount : 0,
+    delivery: typeof d.delivery === "number" ? d.delivery : 0,
+    total: typeof d.total === "number" ? d.total : 0,
+    paymentMethod: (typeof d.paymentMethod === "string"
+      ? d.paymentMethod
+      : "cash-on-delivery") as PaymentMethod,
+    paymentStatus: (["pending", "paid", "failed", "refunded"].includes(d.paymentStatus)
+      ? d.paymentStatus
+      : "pending") as PaymentStatus,
+    status: (ORDER_STATUSES.includes(d.status) ? d.status : "pending") as OrderStatus,
+    activity: Array.isArray(d.activity)
+      ? d.activity.map(mapActivity).filter((a): a is OrderActivity => a !== null)
+      : [],
   };
 }
 
 export function OrdersProvider({ children }: { children: React.ReactNode }) {
-  const [changes, setChanges] = useState<Record<string, OrderChange>>(
-    readStoredChanges
+  const { user, loading: authLoading } = useAuth();
+  const enabled = !authLoading && Boolean(user?.isStaff);
+
+  const state = useFirestoreCollection<Order>(COLLECTIONS.orders, mapOrder, { enabled });
+
+  const orders = useMemo(
+    () => [...state.items].sort((a, b) => b.placedAt.localeCompare(a.placedAt)),
+    [state.items]
   );
-  const isHydrated = useIsHydrated();
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(changes));
-    } catch {
-      // Storage blocked or full - changes still work for this session.
-    }
-  }, [changes]);
-
-  /** Seed orders with admin changes layered on top. */
-  const orders = useMemo(() => {
-    const applied = isHydrated ? changes : {};
-
-    return demoOrders
-      .map((order) => {
-        const change = applied[order.orderNumber];
-        if (!change) return order;
-
-        return {
-          ...order,
-          status: change.status ?? order.status,
-          paymentStatus: change.paymentStatus ?? order.paymentStatus,
-          updatedAt: change.updatedAt,
-          activity: [...order.activity, ...change.activity],
-        };
-      })
-      .sort(
-        (a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
-      );
-  }, [changes, isHydrated]);
 
   const getOrder = useCallback(
-    (orderNumber: string) =>
-      orders.find(
-        (o) => o.orderNumber.toLowerCase() === orderNumber.toLowerCase()
-      ),
+    (orderNumber: string) => orders.find((o) => o.orderNumber === orderNumber),
     [orders]
   );
 
-  /** Records one change plus its activity entry, atomically. */
+  /**
+   * Writes the change AND the activity row together, so an order can
+   * never show a status nothing explains.
+   */
   const commit = useCallback(
-    (
-      orderNumber: string,
-      patch: Partial<Pick<OrderChange, "status" | "paymentStatus">>,
-      message: string
-    ) => {
-      const now = new Date().toISOString();
-      setChanges((current) => {
-        const existing = current[orderNumber];
-        return {
-          ...current,
-          [orderNumber]: {
-            status: patch.status ?? existing?.status,
-            paymentStatus: patch.paymentStatus ?? existing?.paymentStatus,
-            updatedAt: now,
-            activity: [...(existing?.activity ?? []), makeActivity(message)],
-          },
-        };
+    async (order: Order, changes: Partial<Order>, message: string) => {
+      const at = new Date().toISOString();
+      const entry: OrderActivity = {
+        id: `act-${Date.now()}`,
+        at,
+        message,
+        by: user?.displayName ?? user?.email ?? "Admin",
+      };
+      await writeDoc(COLLECTIONS.orders, order.orderNumber, {
+        ...changes,
+        updatedAt: at,
+        activity: [...order.activity, entry],
       });
     },
-    []
+    [user]
   );
 
-  /**
-   * Move an order forward.
-   *
-   * Validation runs through canTransitionOrderStatus() from
-   * lib/order-status.ts - the same function the dialog uses to decide
-   * which options to offer. Checking here too means a stale dialog or a
-   * future caller cannot bypass the rule.
-   */
   const updateOrderStatus = useCallback(
-    (orderNumber: string, next: OrderStatus): OrderUpdateResult => {
+    async (orderNumber: string, next: OrderStatus): Promise<OrderUpdateResult> => {
       const order = getOrder(orderNumber);
       if (!order) return { ok: false, error: "Order not found." };
 
@@ -174,11 +178,18 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
-      commit(
-        orderNumber,
-        { status: next },
-        `Order moved from ${ORDER_STATUS_CONFIG[order.status].label} to ${ORDER_STATUS_CONFIG[next].label}.`
-      );
+      try {
+        await commit(
+          order,
+          { status: next },
+          `Order moved from ${ORDER_STATUS_CONFIG[order.status].label} to ${ORDER_STATUS_CONFIG[next].label}.`
+        );
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not save.",
+        };
+      }
 
       return { ok: true, order: { ...order, status: next } };
     },
@@ -190,18 +201,25 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
    * order can still be awaiting cash from the rider.
    */
   const updatePaymentStatus = useCallback(
-    (orderNumber: string, next: PaymentStatus): OrderUpdateResult => {
+    async (orderNumber: string, next: PaymentStatus): Promise<OrderUpdateResult> => {
       const order = getOrder(orderNumber);
       if (!order) return { ok: false, error: "Order not found." };
       if (order.paymentStatus === next) {
         return { ok: false, error: "Payment status is already set to that." };
       }
 
-      commit(
-        orderNumber,
-        { paymentStatus: next },
-        `Payment status changed to ${PAYMENT_STATUS_CONFIG[next].label}.`
-      );
+      try {
+        await commit(
+          order,
+          { paymentStatus: next },
+          `Payment status changed to ${PAYMENT_STATUS_CONFIG[next].label}.`
+        );
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not save.",
+        };
+      }
 
       return { ok: true, order: { ...order, paymentStatus: next } };
     },
@@ -216,11 +234,10 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
    *
    * NOTE WHAT THIS DOES NOT DO: it does not touch stock. No inventory
    * transaction was ever created for this order (creating an order is
-   * not a sale), so there is nothing to give back. See the note at the
-   * bottom of lib/order-utils.ts.
+   * not a sale), so there is nothing to give back.
    */
   const cancelOrder = useCallback(
-    (orderNumber: string, reason: string): OrderUpdateResult => {
+    async (orderNumber: string, reason: string): Promise<OrderUpdateResult> => {
       const order = getOrder(orderNumber);
       if (!order) return { ok: false, error: "Order not found." };
 
@@ -232,18 +249,21 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       }
 
       const trimmed = reason.trim();
-      commit(
-        orderNumber,
-        { status: "cancelled" },
-        trimmed ? `Order cancelled. Reason: ${trimmed}` : "Order cancelled."
-      );
+      if (!trimmed) return { ok: false, error: "Give a reason for the cancellation." };
+
+      try {
+        await commit(order, { status: "cancelled" }, `Order cancelled. Reason: ${trimmed}`);
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not save.",
+        };
+      }
 
       return { ok: true, order: { ...order, status: "cancelled" } };
     },
     [getOrder, commit]
   );
-
-  const resetChanges = useCallback(() => setChanges({}), []);
 
   const value = useMemo(
     () => ({
@@ -252,19 +272,13 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       updateOrderStatus,
       updatePaymentStatus,
       cancelOrder,
-      resetChanges,
-      localChangeCount: isHydrated ? Object.keys(changes).length : 0,
-      isHydrated,
+      loading: state.loading,
+      error: state.error,
+      isHydrated: !state.loading,
     }),
     [
-      orders,
-      getOrder,
-      updateOrderStatus,
-      updatePaymentStatus,
-      cancelOrder,
-      resetChanges,
-      changes,
-      isHydrated,
+      orders, getOrder, updateOrderStatus, updatePaymentStatus, cancelOrder,
+      state.loading, state.error,
     ]
   );
 

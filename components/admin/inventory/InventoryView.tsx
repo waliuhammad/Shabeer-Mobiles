@@ -9,11 +9,9 @@ import {
   XCircle,
   Wallet,
   Search,
-  RotateCcw,
   FileClock,
   ArrowRight,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -45,7 +43,7 @@ import type { InventoryRow, StockStatus } from "@/types";
  * records back the storefront, the product page and the POS.
  */
 export function InventoryView() {
-  const { getStock, transactions, localMovementCount, resetToSeed } = useInventory();
+  const { getStock, transactions } = useInventory();
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -253,26 +251,6 @@ export function InventoryView() {
         </ul>
       </section>
 
-      {/* Demo escape hatch - local movements only, never the seed. */}
-      {localMovementCount > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs">
-          <p className="text-foreground">
-            <strong className="font-semibold">{localMovementCount}</strong>{" "}
-            {localMovementCount === 1 ? "adjustment" : "adjustments"} recorded in
-            this browser. They do not reach the storefront or a database.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={resetToSeed}
-            className="h-8 gap-1.5 bg-background px-3 text-xs"
-          >
-            <RotateCcw className="size-3.5" aria-hidden="true" />
-            Reset demo data
-          </Button>
-        </div>
-      )}
 
       <StockAdjustmentDialog
         row={adjusting}

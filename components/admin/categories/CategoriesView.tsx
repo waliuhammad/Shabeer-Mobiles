@@ -73,31 +73,43 @@ export function CategoriesView() {
     setErrors(validateCategory(next, categories, editing?.id));
   };
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const found = validateCategory(data, categories, editing?.id);
     if (Object.keys(found).length > 0) { setErrors(found); return; }
 
-    if (editing) {
-      const slugChanged = editing.slug !== data.slug.trim();
-      updateCategory(editing.id, data);
-      toast.success("Category updated.", {
-        description: slugChanged
-          ? "The slug changed - any saved link using the old one will stop working."
-          : data.name,
+    try {
+      if (editing) {
+        const slugChanged = editing.slug !== data.slug.trim();
+        await updateCategory(editing.id, data);
+        toast.success("Category updated.", {
+          description: slugChanged
+            ? "The slug changed - any saved link using the old one will stop working."
+            : data.name,
+        });
+      } else {
+        const created = await createCategory(data);
+        toast.success("Category created.", { description: created.name });
+      }
+      close();
+    } catch (error) {
+      toast.error("Could not save.", {
+        description: error instanceof Error ? error.message : "Unknown error.",
       });
-    } else {
-      const created = createCategory(data);
-      toast.success("Category created.", { description: created.name });
     }
-    close();
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!pendingDelete) return;
-    const ok = removeCategory(pendingDelete.id);
-    if (ok) toast.success("Category removed.", { description: pendingDelete.name });
-    else toast.error("Cannot remove a category that still has products.");
+    try {
+      const ok = await removeCategory(pendingDelete.id);
+      if (ok) toast.success("Category removed.", { description: pendingDelete.name });
+      else toast.error("Cannot remove a category that still has products.");
+    } catch (error) {
+      toast.error("Could not remove.", {
+        description: error instanceof Error ? error.message : "Unknown error.",
+      });
+    }
     setPendingDelete(null);
   }
 

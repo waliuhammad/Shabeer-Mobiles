@@ -80,7 +80,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     setErrors(onlyTouched(runValidation(data), nextTouched));
   };
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const found = runValidation(data);
@@ -90,16 +90,22 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       return;
     }
 
-    if (isEdit && customer) {
-      updateCustomer(customer.id, data);
-      toast.success("Customer updated.", { description: data.name });
-      router.push(`/admin/customers/${customer.id}`);
-      return;
-    }
+    try {
+      if (isEdit && customer) {
+        await updateCustomer(customer.id, data);
+        toast.success("Customer updated.", { description: data.name });
+        router.push(`/admin/customers/${customer.id}`);
+        return;
+      }
 
-    const created = createCustomer(data);
-    toast.success("Customer added.", { description: created.name });
-    router.push(`/admin/customers/${created.id}`);
+      const created = await createCustomer(data);
+      toast.success("Customer added.", { description: created.name });
+      router.push(`/admin/customers/${created.id}`);
+    } catch (error) {
+      toast.error("Could not save.", {
+        description: error instanceof Error ? error.message : "Unknown error.",
+      });
+    }
   }
 
   return (

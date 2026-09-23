@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -10,28 +10,44 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { salesRangeOrder, salesRanges } from "@/data/admin";
-import { formatPrice } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-import type { SalesPoint, SalesRangeId } from "@/types";
+import { useOrders } from "@/context/OrdersContext";
+import { useInvoices } from "@/context/InvoicesContext";
+import { buildRevenueSeries, getRevenueEntries } from "@/lib/finance-utils";
+import { bucketUnitFor, resolvePeriod, type PeriodId } from "@/lib/date-range";
+import { formatPrice, cn } from "@/lib/utils";
+import type { RevenuePoint } from "@/types";
 
-/** Compact axis labels: 78300 -> "78k". Full values live in the tooltip. */
+/**
+ * Sales over time - now built from REAL sales.
+ *
+ * This used to render a hard-coded array in data/admin.ts. It read like
+ * a working dashboard and agreed with nothing: the chart said one thing,
+ * /admin/revenue said another, and neither came from a sale.
+ *
+ * It now goes through the same finance layer as /admin/revenue and
+ * /admin/profit-loss - getRevenueEntries() then buildRevenueSeries() -
+ * so all three cannot disagree. An empty shop draws a flat line at zero,
+ * which is the honest picture rather than an invented one.
+ */
+
+const RANGES: { id: PeriodId; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "7d", label: "7 Days" },
+  { id: "30d", label: "30 Days" },
+  { id: "12m", label: "12 Months" },
+];
+
+/** 78,300 -> "78k", 120,000 -> "1.2L" */
 function compactPkr(value: number): string {
-  if (value >= 100000) return `${(value / 100000).toFixed(1)}L`;
-  if (value >= 1000) return `${Math.round(value / 1000)}k`;
-  return String(value);
+  if (Math.abs(value) >= 100_000) return `${(value / 100_000).toFixed(1)}L`;
+  if (Math.abs(value) >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(Math.round(value));
 }
 
 interface TooltipEntry {
-  value?: number | string;
-  payload?: SalesPoint;
+  payload?: RevenuePoint;
 }
 
-/**
- * The hover layer. An HTML chart is interactive by default, so a line or
- * area chart ships a crosshair and tooltip rather than making the reader
- * guess values off the axis.
- */
 function ChartTooltip({
   active,
   payload,
@@ -42,113 +58,94 @@ function ChartTooltip({
   label?: string | number;
 }) {
   if (!active || !payload?.length) return null;
-  const value = payload[0]?.value;
-
+  const point = payload[0]?.payload;
+  if (!point) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-heading text-sm font-bold tabular-nums text-primary">
-        {typeof value === "number" ? formatPrice(value) : value}
+    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-md">
+      <p className="text-xs font-semibold text-foreground">{label}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Revenue{" "}
+        <span className="font-semibold tabular-nums text-foreground">
+          {formatPrice(point.revenue)}
+        </span>
       </p>
     </div>
   );
 }
 
-/**
- * Revenue over time.
- *
- * FORM: change-over-time on a continuous scale -> a line/area chart. One
- * series only, so there is no legend: the heading already names what the
- * line is, and a legend box for a single series is noise.
- *
- * COLOUR: --chart-1, the brand-derived blue that passed the categorical
- * palette checks. The fill is the same hue faded, not a second colour.
- *
- * MARKS: 2px stroke, recessive grid (horizontal only), axes with no lines
- * or ticks. The data is the ink; the scaffolding stays quiet.
- *
- * "use client" because Recharts measures the DOM to size itself, and the
- * range filter is state.
- */
 export function SalesOverview() {
-  const [rangeId, setRangeId] = useState<SalesRangeId>("7d");
-  const range = salesRanges[rangeId];
+  const { orders } = useOrders();
+  const { invoices } = useInvoices();
+  const [rangeId, setRangeId] = useState<PeriodId>("7d");
 
-  const total = range.points.reduce((sum, point) => sum + point.revenue, 0);
+  const { points, total } = useMemo(() => {
+    const range = resolvePeriod(rangeId);
+    const entries = getRevenueEntries(orders, invoices, range);
+    const unit = bucketUnitFor(rangeId, range);
+    const series = buildRevenueSeries(entries, range, unit);
+    return {
+      points: series,
+      total: entries.reduce((sum, e) => sum + e.revenue, 0),
+    };
+  }, [orders, invoices, rangeId]);
+
+  const hasAnySales = points.some((p) => p.revenue !== 0);
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card p-4 sm:p-5">
-      {/* Header + filters. Filters sit in one row above the chart. */}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-heading text-base font-bold text-primary">
-            Sales Overview
-          </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Revenue &middot;{" "}
-            <span className="font-medium tabular-nums text-foreground">
-              {formatPrice(total)}
-            </span>{" "}
-            total for {range.label.toLowerCase()}
+          <h3 className="text-sm font-semibold text-foreground">Sales Overview</h3>
+          <p className="font-heading text-xl font-bold tabular-nums text-primary">
+            {formatPrice(total)}
           </p>
         </div>
 
-        <div
-          className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:px-0 sm:pb-0"
-          role="group"
-          aria-label="Select time range"
-        >
-          {salesRangeOrder.map((id) => {
-            const isActive = id === rangeId;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setRangeId(id)}
-                aria-pressed={isActive}
-                className={cn(
-                  "shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                {salesRanges[id].label}
-              </button>
-            );
-          })}
+        <div role="group" aria-label="Select a period" className="flex flex-wrap gap-1.5">
+          {RANGES.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              aria-pressed={rangeId === r.id}
+              onClick={() => setRangeId(r.id)}
+              className={cn(
+                "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                rangeId === r.id
+                  ? "border-secondary bg-cyan-soft text-secondary"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ResponsiveContainer measures its parent, so the chart can never
-          force horizontal page scroll on a narrow screen. */}
-      <div className="h-56 w-full min-w-0 sm:h-64">
+      {!hasAnySales && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          No completed sales in this period. The line sits at zero rather than
+          being hidden, so the gap is visible.
+        </p>
+      )}
+
+      <div className="mt-3 h-56 w-full min-w-0 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={range.points}
-            margin={{ top: 4, right: 4, bottom: 0, left: -12 }}
-          >
+          <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
             <defs>
               <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.22} />
                 <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
               </linearGradient>
             </defs>
-
-            {/* Horizontal lines only - vertical ones add clutter without
-                helping anyone read a value. */}
-            <CartesianGrid
-              vertical={false}
-              stroke="var(--border)"
-              strokeDasharray="3 3"
-            />
-
+            <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
             <XAxis
               dataKey="label"
               tickLine={false}
               axisLine={false}
               tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               dy={6}
+              interval="preserveStartEnd"
+              minTickGap={16}
             />
             <YAxis
               tickLine={false}
@@ -157,61 +154,54 @@ export function SalesOverview() {
               tickFormatter={compactPkr}
               width={48}
             />
-
             <Tooltip
               content={<ChartTooltip />}
               cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
             />
-
             <Area
               type="monotone"
               dataKey="revenue"
+              name="Revenue"
               stroke="var(--chart-1)"
               strokeWidth={2}
               fill="url(#revenueFill)"
-              // Markers appear on hover only - a dot on every point turns
-              // a trend line into a bead necklace.
               dot={false}
               activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
-              // No entry animation: a dashboard should be readable the
-              // instant it paints, and a growing area is a chart that is
-              // briefly showing the wrong numbers.
               isAnimationActive={false}
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      {/* The table view: the same numbers in text, for anyone who cannot
-          read the chart - screen readers included. */}
+      {/* Accessible fallback - a chart nobody can read is not data. */}
       <details className="mt-3">
-        <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-foreground">
+        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
           View as table
         </summary>
-        <table className="mt-2 w-full text-xs">
-          <caption className="sr-only">
-            Revenue for each point in the selected range
-          </caption>
-          <thead>
-            <tr className="text-left text-muted-foreground">
-              <th scope="col" className="py-1 font-medium">Period</th>
-              <th scope="col" className="py-1 text-right font-medium">Revenue</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {range.points.map((point) => (
-              <tr key={point.label}>
-                <th scope="row" className="py-1 text-left font-normal text-foreground">
-                  {point.label}
-                </th>
-                <td className="py-1 text-right tabular-nums text-foreground">
-                  {formatPrice(point.revenue)}
-                </td>
+        <div className="mt-2 max-h-56 overflow-auto">
+          <table className="w-full text-xs">
+            <caption className="sr-only">Revenue per period</caption>
+            <thead>
+              <tr className="border-b border-border text-left text-muted-foreground">
+                <th scope="col" className="py-1.5 pr-3 font-medium">Period</th>
+                <th scope="col" className="py-1.5 text-right font-medium">Revenue</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {points.map((p) => (
+                <tr key={p.key}>
+                  <th scope="row" className="py-1.5 pr-3 text-left font-normal text-muted-foreground">
+                    {p.label}
+                  </th>
+                  <td className="py-1.5 text-right tabular-nums text-foreground">
+                    {formatPrice(p.revenue)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </details>
-    </section>
+    </div>
   );
 }

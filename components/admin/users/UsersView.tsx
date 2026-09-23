@@ -149,13 +149,14 @@ export function UsersView() {
       <p className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs leading-relaxed text-foreground">
         <ShieldAlert className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
         <span>
-          <strong className="font-semibold">This is not sign-in, and it protects nothing.</strong>{" "}
-          There is no authentication in the project yet: every admin page is reachable
-          by anyone who types its address, and the roles below are a written plan, not
-          a rule the software enforces. Hiding a menu item is not security. Real
-          enforcement needs Firebase Auth with custom claims and Firestore Security
-          Rules, so that a cashier physically cannot read a purchase price no matter
-          what the interface shows them.
+          <strong className="font-semibold">Roles are enforced, but not from this page.</strong>{" "}
+          Sign-in is real: admin pages verify a Firebase session on the server, and a
+          role lives in a signed custom claim that the browser cannot alter. Firestore
+          Security Rules read that claim, so a cashier physically cannot fetch a
+          purchase price whatever the interface shows. What this page is NOT is the
+          place roles are granted - that is done with scripts/set-role.mjs, because an
+          endpoint that can mint an owner is an endpoint worth attacking. The list
+          below is a record of who works here.
         </span>
       </p>
 

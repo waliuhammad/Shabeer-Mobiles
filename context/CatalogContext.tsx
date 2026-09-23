@@ -1,18 +1,12 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { products as seedProducts } from "@/data/products";
-import { categories as seedCategories } from "@/data/categories";
-import { productCosts as seedCosts } from "@/data/product-costs";
+import { createContext, useCallback, useContext, useMemo } from "react";
+import type { QueryDocumentSnapshot } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { removeDoc, writeDoc } from "@/lib/firebase/write";
 import { createCategoryId, createProductId } from "@/lib/catalog-utils";
-import { useIsHydrated } from "@/hooks/use-is-hydrated";
+import { useAuth } from "@/context/AuthContext";
 import type {
   Category,
   CategoryFormData,
@@ -21,123 +15,129 @@ import type {
   ProductStatus,
 } from "@/types";
 
-const PRODUCTS_KEY = "shabbir-mobiles:products:v1";
-const CATEGORIES_KEY = "shabbir-mobiles:categories:v1";
-const COSTS_KEY = "shabbir-mobiles:product-costs:v1";
-
 /**
- * THE catalogue store: products, categories and admin-only costs.
+ * THE catalogue store - now live Firestore, not localStorage.
  *
- * WHY COST IS A SEPARATE MAP, NOT A FIELD ON Product
- * --------------------------------------------------
- * types/product.ts refuses to carry purchasePrice, and the reason is
- * written there: one careless getProducts() on a public page would ship
- * the shop's margins to every customer's browser, and no Security Rule
- * can undo a read that was legitimate.
+ * Products, categories and costs arrive through onSnapshot, so a price
+ * changed on the shop machine appears on the owner's laptop without a
+ * refresh. The component API below is unchanged from the localStorage
+ * version, which is why no screen had to be rewritten.
  *
- * So cost lives in its own record here, exactly as data/product-costs.ts
- * keeps it separate today. In Phase 2 that becomes productCosts/{id},
- * a document only OWNER and MANAGER may read. Keeping the shapes apart
- * now is what makes that split a one-line rule later rather than a
- * refactor of every component.
- *
- * WHAT THIS STORE DOES NOT OWN: stock. Stock belongs to the inventory
- * ledger, because every change to it must record who, how much and why.
- * See the note on ProductFormData.
+ * COST IS A SEPARATE COLLECTION, STILL
+ * ------------------------------------
+ * productCosts/{productId} is its own document, exactly as it was its
+ * own map before. types/product.ts refuses to carry purchasePrice, and
+ * firestore.rules refuses a cashier read of productCosts. Keeping cost
+ * out of the product document is what makes that rule possible: a public
+ * read of the catalogue cannot carry margins it does not contain.
  */
+
 interface CatalogContextValue {
   products: Product[];
-  /** Storefront-visible products only. */
   activeProducts: Product[];
   categories: Category[];
 
   getProduct: (id: string) => Product | undefined;
   getCategory: (id: string) => Category | undefined;
-  /** Admin-only. Current cost, 0 when unknown. */
+  /** Admin-only. 0 when unknown or not readable by this role. */
   getCost: (productId: string) => number;
 
-  createProduct: (data: ProductFormData) => Product;
-  updateProduct: (id: string, data: ProductFormData) => Product | undefined;
-  /** Archives, restores or drafts. Never deletes. */
-  setProductStatus: (id: string, status: ProductStatus) => void;
+  createProduct: (data: ProductFormData) => Promise<Product>;
+  updateProduct: (id: string, data: ProductFormData) => Promise<Product | undefined>;
+  setProductStatus: (id: string, status: ProductStatus) => Promise<void>;
 
-  createCategory: (data: CategoryFormData) => Category;
-  updateCategory: (id: string, data: CategoryFormData) => Category | undefined;
-  /** Refuses when any product still points at it. */
-  removeCategory: (id: string) => boolean;
+  createCategory: (data: CategoryFormData) => Promise<Category>;
+  updateCategory: (id: string, data: CategoryFormData) => Promise<Category | undefined>;
+  removeCategory: (id: string) => Promise<boolean>;
 
-  resetCatalog: () => void;
-  localChangeCount: number;
+  loading: boolean;
+  error: string | null;
+  /** True once the first snapshot has arrived. */
   isHydrated: boolean;
 }
 
 const CatalogContext = createContext<CatalogContextValue | null>(null);
 
-function readStored<T>(key: string, isValid: (v: unknown) => v is T): T | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return isValid(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+function mapProduct(doc: QueryDocumentSnapshot): Product | null {
+  const d = doc.data();
+  if (typeof d.name !== "string" || typeof d.slug !== "string") return null;
+  return {
+    id: doc.id,
+    name: d.name,
+    slug: d.slug,
+    brand: typeof d.brand === "string" ? d.brand : "",
+    sku: typeof d.sku === "string" ? d.sku : "",
+    categoryId: typeof d.categoryId === "string" ? d.categoryId : "",
+    categorySlug: typeof d.categorySlug === "string" ? d.categorySlug : "",
+    categoryName: typeof d.categoryName === "string" ? d.categoryName : "",
+    description: typeof d.description === "string" ? d.description : "",
+    features: Array.isArray(d.features) ? d.features.filter((f) => typeof f === "string") : [],
+    images: Array.isArray(d.images) ? d.images.filter((i) => typeof i === "string") : [],
+    price: typeof d.price === "number" ? d.price : 0,
+    originalPrice: typeof d.originalPrice === "number" ? d.originalPrice : undefined,
+    stock: typeof d.stock === "number" ? d.stock : 0,
+    lowStockThreshold: typeof d.lowStockThreshold === "number" ? d.lowStockThreshold : 5,
+    condition: d.condition === "used" ? "used" : "new",
+    status:
+      d.status === "active" || d.status === "draft" || d.status === "archived"
+        ? d.status
+        : "draft",
+    isFeatured: Boolean(d.isFeatured),
+    isBestSeller: Boolean(d.isBestSeller),
+    createdAt: typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
+  };
 }
 
-const isProductArray = (v: unknown): v is Product[] =>
-  Array.isArray(v) && v.every((p) => typeof p === "object" && p !== null && typeof (p as Product).id === "string");
-const isCategoryArray = (v: unknown): v is Category[] =>
-  Array.isArray(v) && v.every((c) => typeof c === "object" && c !== null && typeof (c as Category).id === "string");
-const isCostMap = (v: unknown): v is Record<string, number> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+function mapCategory(doc: QueryDocumentSnapshot): Category | null {
+  const d = doc.data();
+  if (typeof d.name !== "string" || typeof d.slug !== "string") return null;
+  return {
+    id: doc.id,
+    name: d.name,
+    slug: d.slug,
+    description: typeof d.description === "string" ? d.description : "",
+    image: typeof d.image === "string" ? d.image : null,
+  };
+}
+
+interface CostRow {
+  productId: string;
+  cost: number;
+}
+
+function mapCost(doc: QueryDocumentSnapshot): CostRow | null {
+  const d = doc.data();
+  if (typeof d.cost !== "number") return null;
+  return { productId: doc.id, cost: d.cost };
+}
 
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
-  const [localProducts, setLocalProducts] = useState<Product[]>(
-    () => readStored(PRODUCTS_KEY, isProductArray) ?? []
-  );
-  const [localCategories, setLocalCategories] = useState<Category[]>(
-    () => readStored(CATEGORIES_KEY, isCategoryArray) ?? []
-  );
-  const [localCosts, setLocalCosts] = useState<Record<string, number>>(
-    () => readStored(COSTS_KEY, isCostMap) ?? {}
-  );
-  /** Categories removed in this browser, by id. */
-  const [removedCategories, setRemovedCategories] = useState<string[]>([]);
+  const { user, loading: authLoading } = useAuth();
 
-  const isHydrated = useIsHydrated();
+  // Products and categories are world-readable, so they subscribe
+  // immediately - the storefront needs them signed out.
+  const productsState = useFirestoreCollection<Product>(COLLECTIONS.products, mapProduct);
+  const categoriesState = useFirestoreCollection<Category>(COLLECTIONS.categories, mapCategory);
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(localProducts));
-      window.localStorage.setItem(CATEGORIES_KEY, JSON.stringify(localCategories));
-      window.localStorage.setItem(COSTS_KEY, JSON.stringify(localCosts));
-    } catch {
-      // Storage blocked or full - still works for this session.
-    }
-  }, [localProducts, localCategories, localCosts]);
+  /**
+   * Costs are owner/manager only. Subscribing as a cashier or a signed
+   * out visitor would be refused, so the listener is not even opened -
+   * `enabled` keeps the console clean and saves a pointless round trip.
+   */
+  const canReadCosts =
+    !authLoading && Boolean(user?.isStaff) && user?.role !== "CASHIER";
+  const costsState = useFirestoreCollection<CostRow>(COLLECTIONS.productCosts, mapCost, {
+    enabled: canReadCosts,
+  });
 
-  const categories = useMemo(() => {
-    if (!isHydrated) return seedCategories;
-    const merged = seedCategories
-      .filter((s) => !removedCategories.includes(s.id))
-      .map((seed) => localCategories.find((l) => l.id === seed.id) ?? seed);
-    const brandNew = localCategories.filter(
-      (l) => !seedCategories.some((s) => s.id === l.id)
-    );
-    return [...merged, ...brandNew];
-  }, [localCategories, removedCategories, isHydrated]);
+  const costMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of costsState.items) map.set(row.productId, row.cost);
+    return map;
+  }, [costsState.items]);
 
-  const products = useMemo(() => {
-    if (!isHydrated) return seedProducts;
-    const merged = seedProducts.map(
-      (seed) => localProducts.find((l) => l.id === seed.id) ?? seed
-    );
-    const brandNew = localProducts.filter(
-      (l) => !seedProducts.some((s) => s.id === l.id)
-    );
-    return [...merged, ...brandNew];
-  }, [localProducts, isHydrated]);
+  const products = productsState.items;
+  const categories = categoriesState.items;
 
   const activeProducts = useMemo(
     () => products.filter((p) => p.status === "active"),
@@ -152,24 +152,17 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     (id: string) => categories.find((c) => c.id === id),
     [categories]
   );
-  const getCost = useCallback(
-    (productId: string) => localCosts[productId] ?? seedCosts[productId] ?? 0,
-    [localCosts]
-  );
-
-  const upsertProduct = useCallback((product: Product) => {
-    setLocalProducts((cur) => [...cur.filter((p) => p.id !== product.id), product]);
-  }, []);
+  const getCost = useCallback((productId: string) => costMap.get(productId) ?? 0, [costMap]);
 
   /**
-   * Builds the Product fields from the form, resolving the denormalised
-   * category name and slug from the category id.
+   * Builds the product document from the form.
    *
-   * Firestore has no joins, so those two copies exist on purpose: the
-   * shop page filters by categorySlug and the card prints categoryName
-   * without a second read. The cost is applied SEPARATELY, by the caller.
+   * categorySlug and categoryName are denormalised copies. Firestore has
+   * no joins, so the shop page can filter by slug and a card can print
+   * the category name without a second read. They are resolved here, at
+   * write time, from the category id.
    */
-  const applyForm = useCallback(
+  const buildProduct = useCallback(
     (data: ProductFormData, base: Product): Product => {
       const category = getCategory(data.categoryId);
       return {
@@ -182,10 +175,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         categorySlug: category?.slug ?? base.categorySlug,
         categoryName: category?.name ?? base.categoryName,
         description: data.description.trim(),
-        features: data.features
-          .split("\n")
-          .map((f) => f.trim())
-          .filter(Boolean),
+        features: data.features.split("\n").map((f) => f.trim()).filter(Boolean),
         price: Math.round(Number(data.price)),
         originalPrice: data.originalPrice.trim()
           ? Math.round(Number(data.originalPrice))
@@ -200,33 +190,28 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     [getCategory]
   );
 
-  const setCost = useCallback((productId: string, raw: string) => {
+  /** Cost goes to its own document, never onto the product. */
+  const saveCost = useCallback(async (productId: string, raw: string) => {
     if (!raw.trim()) return;
     const value = Math.round(Number(raw));
     if (!Number.isFinite(value) || value < 0) return;
-    setLocalCosts((cur) => ({ ...cur, [productId]: value }));
+    await writeDoc(COLLECTIONS.productCosts, productId, {
+      cost: value,
+      updatedAt: new Date().toISOString(),
+    });
   }, []);
 
   const createProduct = useCallback(
-    (data: ProductFormData): Product => {
+    async (data: ProductFormData): Promise<Product> => {
       const id = createProductId();
-      const product = applyForm(data, {
+      const product = buildProduct(data, {
         id,
-        name: "",
-        slug: "",
-        brand: "",
-        sku: "",
-        categoryId: "",
-        categorySlug: "",
-        categoryName: "",
-        description: "",
-        features: [],
-        images: [],
+        name: "", slug: "", brand: "", sku: "",
+        categoryId: "", categorySlug: "", categoryName: "",
+        description: "", features: [], images: [],
         price: 0,
-        // A brand new product starts at zero stock on purpose. Stock
-        // arrives through a purchase being received or a manual
-        // adjustment - both of which leave a ledger entry. Letting this
-        // form seed stock would create units from nothing.
+        // A new product starts at zero stock. Units arrive only through
+        // a recorded movement, never by being typed into a form.
         stock: 0,
         lowStockThreshold: 5,
         condition: "new",
@@ -235,48 +220,49 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         isBestSeller: false,
         createdAt: new Date().toISOString(),
       });
-      upsertProduct(product);
-      setCost(id, data.purchasePrice);
+      await writeDoc(COLLECTIONS.products, id, product);
+      await saveCost(id, data.purchasePrice);
       return product;
     },
-    [applyForm, upsertProduct, setCost]
+    [buildProduct, saveCost]
   );
 
   const updateProduct = useCallback(
-    (id: string, data: ProductFormData): Product | undefined => {
+    async (id: string, data: ProductFormData): Promise<Product | undefined> => {
       const existing = getProduct(id);
       if (!existing) return undefined;
-      const updated = applyForm(data, existing);
-      upsertProduct(updated);
-      setCost(id, data.purchasePrice);
+      const updated = buildProduct(data, existing);
+      await writeDoc(COLLECTIONS.products, id, updated);
+      await saveCost(id, data.purchasePrice);
       return updated;
     },
-    [getProduct, applyForm, upsertProduct, setCost]
+    [getProduct, buildProduct, saveCost]
   );
 
   const setProductStatus = useCallback(
-    (id: string, status: ProductStatus) => {
-      const existing = getProduct(id);
-      if (!existing) return;
-      upsertProduct({ ...existing, status });
+    async (id: string, status: ProductStatus) => {
+      await writeDoc(COLLECTIONS.products, id, { status });
     },
-    [getProduct, upsertProduct]
+    []
   );
 
-  const createCategory = useCallback((data: CategoryFormData): Category => {
-    const category: Category = {
-      id: createCategoryId(),
-      name: data.name.trim(),
-      slug: data.slug.trim(),
-      description: data.description.trim(),
-      image: null,
-    };
-    setLocalCategories((cur) => [...cur, category]);
-    return category;
-  }, []);
+  const createCategory = useCallback(
+    async (data: CategoryFormData): Promise<Category> => {
+      const category: Category = {
+        id: createCategoryId(),
+        name: data.name.trim(),
+        slug: data.slug.trim(),
+        description: data.description.trim(),
+        image: null,
+      };
+      await writeDoc(COLLECTIONS.categories, category.id, category);
+      return category;
+    },
+    []
+  );
 
   const updateCategory = useCallback(
-    (id: string, data: CategoryFormData): Category | undefined => {
+    async (id: string, data: CategoryFormData): Promise<Category | undefined> => {
       const existing = getCategory(id);
       if (!existing) return undefined;
       const updated: Category = {
@@ -285,56 +271,40 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         slug: data.slug.trim(),
         description: data.description.trim(),
       };
-      setLocalCategories((cur) => [...cur.filter((c) => c.id !== id), updated]);
+      await writeDoc(COLLECTIONS.categories, id, updated);
       return updated;
     },
     [getCategory]
   );
 
   const removeCategory = useCallback(
-    (id: string): boolean => {
-      // Guarded here as well as in the UI. A category with products
-      // behind it would orphan every one of them.
+    async (id: string): Promise<boolean> => {
+      // Guarded here as well as in the UI: removing a category with
+      // products behind it would leave every one of them pointing at
+      // something that no longer exists.
       if (products.some((p) => p.categoryId === id)) return false;
-      setLocalCategories((cur) => cur.filter((c) => c.id !== id));
-      setRemovedCategories((cur) => (cur.includes(id) ? cur : [...cur, id]));
+      await removeDoc(COLLECTIONS.categories, id);
       return true;
     },
     [products]
   );
 
-  const resetCatalog = useCallback(() => {
-    setLocalProducts([]);
-    setLocalCategories([]);
-    setLocalCosts({});
-    setRemovedCategories([]);
-  }, []);
+  const loading = productsState.loading || categoriesState.loading;
+  const error = productsState.error ?? categoriesState.error ?? costsState.error;
 
   const value = useMemo(
     () => ({
-      products,
-      activeProducts,
-      categories,
-      getProduct,
-      getCategory,
-      getCost,
-      createProduct,
-      updateProduct,
-      setProductStatus,
-      createCategory,
-      updateCategory,
-      removeCategory,
-      resetCatalog,
-      localChangeCount: isHydrated
-        ? localProducts.length + localCategories.length + Object.keys(localCosts).length
-        : 0,
-      isHydrated,
+      products, activeProducts, categories,
+      getProduct, getCategory, getCost,
+      createProduct, updateProduct, setProductStatus,
+      createCategory, updateCategory, removeCategory,
+      loading, error,
+      isHydrated: !loading,
     }),
     [
       products, activeProducts, categories, getProduct, getCategory, getCost,
       createProduct, updateProduct, setProductStatus, createCategory,
-      updateCategory, removeCategory, resetCatalog,
-      localProducts.length, localCategories.length, localCosts, isHydrated,
+      updateCategory, removeCategory, loading, error,
     ]
   );
 

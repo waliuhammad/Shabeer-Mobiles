@@ -1,5 +1,11 @@
+"use client";
+
+import { useMemo } from "react";
 import { Store, Globe } from "lucide-react";
-import { salesChannels } from "@/data/admin";
+import { useOrders } from "@/context/OrdersContext";
+import { useInvoices } from "@/context/InvoicesContext";
+import { getRevenueEntries } from "@/lib/finance-utils";
+import { resolvePeriod } from "@/lib/date-range";
 import { formatPrice } from "@/lib/utils";
 
 /**
@@ -26,9 +32,28 @@ import { formatPrice } from "@/lib/utils";
  * Identity is never colour-alone: each channel carries an icon, a name and
  * its own percentage in text.
  *
- * A Server Component - no JavaScript ships for this at all.
+ * A client island now, because the split is computed from live sales
+ * rather than a fixed array.
  */
 export function SalesChannel() {
+  const { orders } = useOrders();
+  const { invoices } = useInvoices();
+
+  // Counter vs online, from the SAME entries the revenue page reads.
+  const salesChannels = useMemo(() => {
+    const entries = getRevenueEntries(orders, invoices, resolvePeriod("30d"));
+    const counter = entries
+      .filter((e) => e.channel === "POS")
+      .reduce((sum, e) => sum + e.revenue, 0);
+    const online = entries
+      .filter((e) => e.channel === "ONLINE")
+      .reduce((sum, e) => sum + e.revenue, 0);
+    return [
+      { id: "physical" as const, label: "Shop Counter", amount: counter },
+      { id: "online" as const, label: "Online", amount: online },
+    ];
+  }, [orders, invoices]);
+
   const total = salesChannels.reduce((sum, channel) => sum + channel.amount, 0);
 
   const rows = salesChannels.map((channel) => ({

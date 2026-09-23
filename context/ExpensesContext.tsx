@@ -1,110 +1,88 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { seedExpenses } from "@/data/expenses";
+import { createContext, useCallback, useContext, useMemo } from "react";
+import type { QueryDocumentSnapshot } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { writeDoc } from "@/lib/firebase/write";
 import { createExpenseId } from "@/lib/expense-utils";
-import { useIsHydrated } from "@/hooks/use-is-hydrated";
+import { useAuth } from "@/context/AuthContext";
 import type { Expense, ExpenseFormData, ExpenseStatus } from "@/types";
 
-const STORAGE_KEY = "shabbir-mobiles:expenses:v1";
-
 /**
- * The operating-expense store.
+ * Operating expenses - live Firestore.
  *
- * Same overlay shape as CustomersContext: rows created or edited in this
- * browser are layered over the shared seed in data/expenses.ts, keyed by
- * id, so editing one expense does not copy the other twelve.
- *
- * THERE IS NO DELETE. An expense that was wrong is CANCELLED, which
+ * THERE IS NO DELETE. An expense entered in error is CANCELLED, which
  * removes it from every total while leaving it visible in the list.
- * Deleting would make the correction invisible, and a financial record
- * nobody can audit is worse than a wrong one everybody can see.
+ * firestore.rules enforces the same thing (`allow delete: if false`), so
+ * this is not merely a UI convention - the database refuses it.
  *
- * KNOWN LIMITATION, as with every mock store here: this lives in one
- * browser. Expenses recorded on the shop machine do not reach the
- * owner's laptop until Firestore replaces it.
+ * Cashiers cannot read this collection at all. Expenses reveal the
+ * shop's cost base.
  */
+
 interface ExpensesContextValue {
   expenses: Expense[];
   getExpense: (id: string) => Expense | undefined;
-  createExpense: (data: ExpenseFormData) => Expense;
-  updateExpense: (id: string, data: ExpenseFormData) => Expense | undefined;
-  /** Sets status to CANCELLED. Never removes the row. */
-  cancelExpense: (id: string) => void;
-  setExpenseStatus: (id: string, status: ExpenseStatus) => void;
-  resetExpenses: () => void;
-  localChangeCount: number;
+  createExpense: (data: ExpenseFormData) => Promise<Expense>;
+  updateExpense: (id: string, data: ExpenseFormData) => Promise<Expense | undefined>;
+  cancelExpense: (id: string) => Promise<void>;
+  setExpenseStatus: (id: string, status: ExpenseStatus) => Promise<void>;
+  loading: boolean;
+  error: string | null;
   isHydrated: boolean;
 }
 
 const ExpensesContext = createContext<ExpensesContextValue | null>(null);
 
-function readStored(): Expense[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (e): e is Expense =>
-        typeof e === "object" &&
-        e !== null &&
-        typeof (e as Expense).id === "string" &&
-        typeof (e as Expense).amount === "number"
-    );
-  } catch {
-    return [];
-  }
+function mapExpense(doc: QueryDocumentSnapshot): Expense | null {
+  const d = doc.data();
+  if (typeof d.title !== "string" || typeof d.amount !== "number") return null;
+  const status: ExpenseStatus =
+    d.status === "PAID" || d.status === "PENDING" || d.status === "CANCELLED"
+      ? d.status
+      : "PENDING";
+  return {
+    id: doc.id,
+    title: d.title,
+    category: typeof d.category === "string" ? (d.category as Expense["category"]) : "OTHER",
+    amount: d.amount,
+    paymentMethod:
+      d.paymentMethod === "BANK_TRANSFER" || d.paymentMethod === "OTHER"
+        ? d.paymentMethod
+        : "CASH",
+    description: typeof d.description === "string" ? d.description : "",
+    status,
+    expenseDate: typeof d.expenseDate === "string" ? d.expenseDate : new Date(0).toISOString(),
+    createdBy: typeof d.createdBy === "string" ? d.createdBy : "",
+    createdAt: typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
+    updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : new Date(0).toISOString(),
+  };
 }
 
 export function ExpensesProvider({ children }: { children: React.ReactNode }) {
-  const [local, setLocal] = useState<Expense[]>(readStored);
-  const isHydrated = useIsHydrated();
+  const { user, loading: authLoading } = useAuth();
+  const enabled =
+    !authLoading && Boolean(user?.isStaff) && user?.role !== "CASHIER";
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
-    } catch {
-      // Storage blocked or full - still works for this session.
-    }
-  }, [local]);
+  const state = useFirestoreCollection<Expense>(COLLECTIONS.expenses, mapExpense, {
+    enabled,
+  });
 
-  const expenses = useMemo(() => {
-    if (!isHydrated) return seedExpenses;
-
-    const merged = seedExpenses.map(
-      (seed) => local.find((l) => l.id === seed.id) ?? seed
-    );
-    const brandNew = local.filter(
-      (l) => !seedExpenses.some((s) => s.id === l.id)
-    );
-
-    // Newest cost first - the list is read far more often than it is
-    // searched, and the most recent bill is usually the one wanted.
-    return [...merged, ...brandNew].sort((a, b) =>
-      b.expenseDate.localeCompare(a.expenseDate)
-    );
-  }, [local, isHydrated]);
+  // Newest cost first. The list is read far more often than searched,
+  // and the most recent bill is usually the one wanted.
+  const expenses = useMemo(
+    () => [...state.items].sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
+    [state.items]
+  );
 
   const getExpense = useCallback(
     (id: string) => expenses.find((e) => e.id === id),
     [expenses]
   );
 
-  const upsert = useCallback((expense: Expense) => {
-    setLocal((current) => [...current.filter((e) => e.id !== expense.id), expense]);
-  }, []);
-
   const createExpense = useCallback(
-    (data: ExpenseFormData): Expense => {
+    async (data: ExpenseFormData): Promise<Expense> => {
       const stamp = new Date().toISOString();
       const expense: Expense = {
         id: createExpenseId(),
@@ -117,18 +95,18 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         description: data.description.trim(),
         status: data.status,
         expenseDate: new Date(data.expenseDate).toISOString(),
-        createdBy: "Owner",
+        createdBy: user?.displayName ?? user?.email ?? "Staff",
         createdAt: stamp,
         updatedAt: stamp,
       };
-      upsert(expense);
+      await writeDoc(COLLECTIONS.expenses, expense.id, expense);
       return expense;
     },
-    [upsert]
+    [user]
   );
 
   const updateExpense = useCallback(
-    (id: string, data: ExpenseFormData): Expense | undefined => {
+    async (id: string, data: ExpenseFormData): Promise<Expense | undefined> => {
       const existing = getExpense(id);
       if (!existing) return undefined;
       // A cancelled expense is frozen. Editing it would quietly change a
@@ -147,27 +125,23 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         // createdAt and createdBy are never touched.
         updatedAt: new Date().toISOString(),
       };
-      upsert(updated);
+      await writeDoc(COLLECTIONS.expenses, id, updated);
       return updated;
     },
-    [getExpense, upsert]
+    [getExpense]
   );
 
-  const setExpenseStatus = useCallback(
-    (id: string, status: ExpenseStatus) => {
-      const existing = getExpense(id);
-      if (!existing) return;
-      upsert({ ...existing, status, updatedAt: new Date().toISOString() });
-    },
-    [getExpense, upsert]
-  );
+  const setExpenseStatus = useCallback(async (id: string, status: ExpenseStatus) => {
+    await writeDoc(COLLECTIONS.expenses, id, {
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+  }, []);
 
   const cancelExpense = useCallback(
     (id: string) => setExpenseStatus(id, "CANCELLED"),
     [setExpenseStatus]
   );
-
-  const resetExpenses = useCallback(() => setLocal([]), []);
 
   const value = useMemo(
     () => ({
@@ -177,26 +151,17 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
       updateExpense,
       cancelExpense,
       setExpenseStatus,
-      resetExpenses,
-      localChangeCount: isHydrated ? local.length : 0,
-      isHydrated,
+      loading: state.loading,
+      error: state.error,
+      isHydrated: !state.loading,
     }),
     [
-      expenses,
-      getExpense,
-      createExpense,
-      updateExpense,
-      cancelExpense,
-      setExpenseStatus,
-      resetExpenses,
-      local.length,
-      isHydrated,
+      expenses, getExpense, createExpense, updateExpense, cancelExpense,
+      setExpenseStatus, state.loading, state.error,
     ]
   );
 
-  return (
-    <ExpensesContext.Provider value={value}>{children}</ExpensesContext.Provider>
-  );
+  return <ExpensesContext.Provider value={value}>{children}</ExpensesContext.Provider>;
 }
 
 export function useExpenses(): ExpensesContextValue {

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Info } from "lucide-react";
 import { Container } from "@/components/shared/Container";
 import { Logo } from "@/components/shared/Logo";
 
@@ -42,19 +41,6 @@ export function AuthShell({
             <h1 className="text-2xl font-bold text-primary">{title}</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
           </div>
-
-          {/*
-            Stated plainly and permanently, not as a toast that disappears.
-            Anyone testing this must know no real account exists - otherwise
-            they will "log in", close the tab, and wonder why nothing saved.
-          */}
-          <p className="mb-6 flex items-start gap-2 rounded-lg border border-secondary/30 bg-cyan-soft/60 p-3 text-xs leading-relaxed text-foreground">
-            <Info className="mt-0.5 size-3.5 shrink-0 text-secondary" aria-hidden="true" />
-            <span>
-              Firebase Authentication will be connected in Phase 2. This form
-              validates your input but does not create or sign in a real account.
-            </span>
-          </p>
 
           {children}
         </div>

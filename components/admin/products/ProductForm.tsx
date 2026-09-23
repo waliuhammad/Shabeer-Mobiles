@@ -76,6 +76,7 @@ export function ProductForm({ product }: ProductFormProps) {
   );
   const [errors, setErrors] = useState<ProductErrors>({});
   const [slugTouched, setSlugTouched] = useState(isEdit);
+  const [saving, setSaving] = useState(false);
 
   const run = (next: ProductFormData) => validateProduct(next, products, product?.id);
 
@@ -91,7 +92,7 @@ export function ProductForm({ product }: ProductFormProps) {
     setErrors(run(next));
   };
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const found = run(data);
     if (Object.keys(found).length > 0) {
@@ -100,18 +101,30 @@ export function ProductForm({ product }: ProductFormProps) {
       return;
     }
 
-    if (isEdit && product) {
-      updateProduct(product.id, data);
-      toast.success("Product updated.", { description: data.name });
-      router.push(`/admin/products/${product.id}`);
-      return;
-    }
+    // Writes go to Firestore through Security Rules, so they can be
+    // refused (wrong role) or fail (offline). Either must be shown -
+    // a form that navigates away on a failed save loses the work.
+    setSaving(true);
+    try {
+      if (isEdit && product) {
+        await updateProduct(product.id, data);
+        toast.success("Product updated.", { description: data.name });
+        router.push(`/admin/products/${product.id}`);
+        return;
+      }
 
-    const created = createProduct(data);
-    toast.success("Product created as a draft.", {
-      description: "Add stock through inventory, then set it Active.",
-    });
-    router.push(`/admin/products/${created.id}`);
+      const created = await createProduct(data);
+      toast.success("Product created as a draft.", {
+        description: "Add stock through inventory, then set it Active.",
+      });
+      router.push(`/admin/products/${created.id}`);
+    } catch (error) {
+      toast.error("Could not save.", {
+        description: error instanceof Error ? error.message : "Unknown error.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const price = Number(data.price) || 0;
@@ -302,9 +315,13 @@ export function ProductForm({ product }: ProductFormProps) {
             <ArrowLeft className="size-4" aria-hidden="true" />Cancel
           </Link>
         </Button>
-        <Button type="submit" className="h-10 gap-1.5 bg-accent px-6 text-sm font-semibold text-accent-foreground hover:bg-gold-deep">
+        <Button
+          type="submit"
+          disabled={saving}
+          className="h-10 gap-1.5 bg-accent px-6 text-sm font-semibold text-accent-foreground hover:bg-gold-deep"
+        >
           <Save className="size-4" aria-hidden="true" />
-          {isEdit ? "Save Changes" : "Create Product"}
+          {saving ? "Saving..." : isEdit ? "Save Changes" : "Create Product"}
         </Button>
       </div>
     </form>

@@ -92,11 +92,11 @@ export function StockAdjustmentDialog({
     setError(null);
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!row) return;
 
-    const result = adjustStock({
+    const result = await adjustStock({
       productId: row.productId,
       direction,
       quantity,
@@ -308,9 +308,10 @@ export function StockAdjustmentDialog({
           )}
 
           <p className="rounded-md bg-muted/60 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
-            This writes an inventory transaction recording the before and after
-            figures. Demo only - it is stored in this browser and does not reach
-            the storefront or a database.
+            This writes a ledger entry recording the before and after figures,
+            and updates the product&apos;s stock in the same batch - so the ledger
+            and the shelf cannot drift apart. The entry can never be edited or
+            deleted afterwards.
           </p>
 
           <DialogFooter>
