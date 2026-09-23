@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Package, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
+import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { countOrderItems, formatOrderDate } from "@/lib/order-utils";
 import { formatPrice } from "@/lib/utils";
 import type { Order } from "@/types";

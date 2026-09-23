@@ -1,3 +1,4 @@
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import {
   LayoutDashboard,
   Calculator,
@@ -79,7 +80,17 @@ export const adminNavSections: AdminNavSection[] = [
     title: "Sales",
     items: [
       { label: "POS / Billing", href: "/admin/billing", icon: Calculator, roles: ALL },
-      { label: "Online Orders", href: "/admin/orders", icon: ShoppingBag, roles: OWNER_MANAGER },
+      /**
+       * Online Orders - hidden while the shop does not sell online.
+       *
+       * The route, the data and the finance integration all still exist
+       * and still compile; there is simply nothing to look at, so the
+       * link is not offered. Turning ONLINE_STORE_ENABLED back on brings
+       * it straight back.
+       */
+      ...(ONLINE_STORE_ENABLED
+        ? [{ label: "Online Orders", href: "/admin/orders", icon: ShoppingBag, roles: OWNER_MANAGER }]
+        : []),
     ],
   },
   {

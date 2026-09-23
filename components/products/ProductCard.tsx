@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Eye, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { PriceDisplay } from "@/components/shared/PriceDisplay";
 import { AddToCartButton } from "@/components/products/AddToCartButton";
 import { WishlistButton } from "@/components/products/WishlistButton";

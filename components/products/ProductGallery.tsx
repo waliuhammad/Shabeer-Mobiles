@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { cn } from "@/lib/utils";
 
 interface ProductGalleryProps {

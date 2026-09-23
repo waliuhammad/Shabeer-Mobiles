@@ -17,7 +17,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
+import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { OrderTimeline } from "@/components/admin/orders/OrderTimeline";
 import {
   CancelOrderDialog,

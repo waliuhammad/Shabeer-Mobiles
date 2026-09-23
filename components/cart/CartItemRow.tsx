@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { QuantitySelector } from "@/components/products/QuantitySelector";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";

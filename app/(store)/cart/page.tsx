@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { Container } from "@/components/shared/Container";
 import { Breadcrumb } from "@/components/shared/Breadcrumb";
@@ -17,7 +19,16 @@ export const metadata: Metadata = {
  * The heading and breadcrumb are static HTML. Only CartView and the item
  * count need browser state, so only those two opt into the client.
  */
+/**
+ * DISABLED - the shop does not sell online.
+ *
+ * The page is kept whole and still type-checks; it simply 404s while
+ * ONLINE_STORE_ENABLED is false. Flip that flag in lib/feature-flags.ts
+ * to bring it back.
+ */
 export default function CartPage() {
+  if (!ONLINE_STORE_ENABLED) notFound();
+
   return (
     <Container className="py-6 lg:py-10">
       <Breadcrumb

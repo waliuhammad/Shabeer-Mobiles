@@ -1,3 +1,4 @@
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Container } from "@/components/shared/Container";
@@ -85,9 +86,17 @@ export async function generateMetadata({
  *          v
  *   ProductGallery / ProductInfo / ProductTabs
  */
+/**
+ * DISABLED - the shop does not sell online.
+ *
+ * The page is kept whole and still type-checks; it simply 404s while
+ * ONLINE_STORE_ENABLED is false. Flip that flag in lib/feature-flags.ts
+ * to bring it back.
+ */
 export default async function ProductDetailPage({
   params,
 }: PageProps<"/product/[slug]">) {
+  if (!ONLINE_STORE_ENABLED) notFound();
   // `params` is a Promise in Next.js 15+, so the page must be async.
   // `slug` is named after the folder: [slug] -> params.slug.
   // Rename the folder to [productSlug] and this becomes params.productSlug.

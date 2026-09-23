@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { Search, PackageSearch, SearchX, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderTimeline } from "@/components/tracking/OrderTimeline";
-import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
-import { ProductImage } from "@/components/products/ProductImage";
+import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import {
   countOrderItems,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Eye, PackageSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
+import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { PAYMENT_STATUS_CONFIG } from "@/lib/order-status";
 import { PAYMENT_METHOD_LABELS } from "@/lib/order-display";
 import { countOrderItems, formatOrderDate } from "@/lib/order-utils";

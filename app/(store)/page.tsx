@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { HOME_REDIRECT } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { Container } from "@/components/shared/Container";
 import { SectionHeading } from "@/components/shared/SectionHeading";
@@ -28,7 +30,19 @@ export const metadata: Metadata = {
  * one import - the seam between "where data comes from" and "what the
  * page renders" held, exactly as the earlier note predicted.
  */
+/**
+ * The shop window - DISABLED while the business does not sell online.
+ *
+ * Kept intact rather than deleted: it still compiles and type-checks, so
+ * it cannot rot. Turning ONLINE_STORE_ENABLED back on in
+ * lib/feature-flags.ts restores it exactly as it was.
+ *
+ * Until then the root sends staff to the admin panel, which bounces
+ * anyone who is not signed in to the login page.
+ */
 export default async function HomePage() {
+  if (HOME_REDIRECT) redirect(HOME_REDIRECT);
+
   // Run together rather than one after the other. Both hit the same
   // cached getActiveProducts() underneath, so this is one read, not two.
   const [featured, bestSellers] = await Promise.all([

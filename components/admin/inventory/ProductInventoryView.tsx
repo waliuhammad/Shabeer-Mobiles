@@ -11,7 +11,7 @@ import {
   Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { InventoryTransactionTable } from "@/components/admin/inventory/InventoryTransactionTable";
 import { StockAdjustmentDialog } from "@/components/admin/inventory/StockAdjustmentDialog";
 import { useInventory } from "@/context/InventoryContext";

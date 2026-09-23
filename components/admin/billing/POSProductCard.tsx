@@ -2,7 +2,7 @@
 
 import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { getProductStockLevel, STOCK_LEVEL_STYLES, IN_STOCK_STYLE } from "@/lib/stock";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product } from "@/types";

@@ -1,5 +1,5 @@
 import { Pencil, ShieldAlert } from "lucide-react";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { PAYMENT_METHODS } from "@/lib/checkout-utils";
 import { formatPrice } from "@/lib/utils";
 import type { CartItem, CheckoutFormData, PaymentMethod } from "@/types";

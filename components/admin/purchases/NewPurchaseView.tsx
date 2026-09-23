@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { usePurchasing } from "@/context/PurchasingContext";
 import { useInventory } from "@/context/InventoryContext";
 import { getActiveProducts } from "@/data/products";

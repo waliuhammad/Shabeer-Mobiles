@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Eye, SlidersHorizontal, PackageSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProductImage } from "@/components/products/ProductImage";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { STOCK_STATUS_STYLES } from "@/lib/stock";
 import { formatTransactionDate } from "@/lib/inventory-utils";
 import { cn } from "@/lib/utils";

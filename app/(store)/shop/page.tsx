@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { Container } from "@/components/shared/Container";
 import { ShopBrowser } from "@/components/shop/ShopBrowser";
@@ -22,7 +24,15 @@ export const metadata: Metadata = {
  * parameters are resolved. Practically: this function must be `async` and
  * you must `await searchParams` before reading it.
  */
+/**
+ * DISABLED - the shop does not sell online.
+ *
+ * The page is kept whole and still type-checks; it simply 404s while
+ * ONLINE_STORE_ENABLED is false. Flip that flag in lib/feature-flags.ts
+ * to bring it back.
+ */
 export default async function ShopPage({ searchParams }: PageProps<"/shop">) {
+  if (!ONLINE_STORE_ENABLED) notFound();
   const params = await searchParams;
   const category = typeof params.category === "string" ? params.category : "all";
   const q = typeof params.q === "string" ? params.q : "";

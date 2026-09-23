@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { Container } from "@/components/shared/Container";
 import { Breadcrumb } from "@/components/shared/Breadcrumb";
@@ -24,7 +26,16 @@ export const metadata: Metadata = {
  * regardless of what this page does - a signed-in user is not the same
  * thing as an authorised one.
  */
+/**
+ * DISABLED - the shop does not sell online.
+ *
+ * The page is kept whole and still type-checks; it simply 404s while
+ * ONLINE_STORE_ENABLED is false. Flip that flag in lib/feature-flags.ts
+ * to bring it back.
+ */
 export default async function AccountPage() {
+  if (!ONLINE_STORE_ENABLED) notFound();
+
   const user = await requireUser("/account");
 
   return (
