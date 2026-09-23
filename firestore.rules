@@ -55,6 +55,18 @@ service cloud.firestore {
       return isStaff() && role() == 'MANAGER';
     }
 
+    /**
+     * Deliberately kept, and deliberately not used as a positive
+     * permission anywhere.
+     *
+     * A cashier's access is expressed as what they are NOT granted:
+     * every cost, margin and profit rule says isOwnerOrManager(), so a
+     * cashier fails it. Writing `if !isCashier()` instead would mean a
+     * NEW role added later silently inherited full access - the rule
+     * would only exclude the one role someone remembered to name.
+     *
+     * Allow-lists fail closed. Deny-lists fail open.
+     */
     function isCashier() {
       return isStaff() && role() == 'CASHIER';
     }
