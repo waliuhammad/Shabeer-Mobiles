@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAdminAuth, isAdminConfigured } from "@/lib/firebase/admin";
-import { SESSION_COOKIE } from "@/lib/auth/dal";
+import { SESSION_COOKIE } from "@/lib/firebase/session-cookie";
 
 /**
  * The session endpoint. This is where a browser sign-in becomes a

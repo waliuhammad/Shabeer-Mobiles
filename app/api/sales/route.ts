@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { getAdminDb, isAdminConfigured } from "@/lib/firebase/admin";
+import { isAdminConfigured } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin-db";
 import { verifySession } from "@/lib/auth/dal";
 import type { Invoice, InvoiceLine, POSPaymentMethod } from "@/types";
 

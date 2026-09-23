@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { getAdminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin-db";
 import { COLLECTIONS } from "@/lib/firebase/firestore";
 import type { Category, Product } from "@/types";
 

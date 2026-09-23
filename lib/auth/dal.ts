@@ -34,7 +34,7 @@ import type { SessionUser } from "@/types/auth";
  * so the cookie is verified once instead of four times.
  */
 
-const SESSION_COOKIE = "shabbir_session";
+import { SESSION_COOKIE } from "@/lib/firebase/session-cookie";
 
 export { SESSION_COOKIE };
 

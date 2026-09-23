@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE } from "@/lib/firebase/session-cookie";
 
 /**
  * proxy.ts - what Next.js 15 and earlier called middleware.ts.
@@ -27,9 +28,6 @@ import { NextResponse, type NextRequest } from "next/server";
  * Put the other way round: forging a cookie value gets you past THIS
  * file and no further.
  */
-
-/** Must match SESSION_COOKIE in lib/auth/dal.ts. */
-const SESSION_COOKIE = "shabbir_session";
 
 /** Signed-in visitors do not need these. */
 const AUTH_PAGES = ["/login", "/register"];

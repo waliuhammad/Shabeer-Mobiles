@@ -2,7 +2,6 @@ import "server-only";
 
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 /**
  * THE trusted server Firebase app.
@@ -59,7 +58,7 @@ export function isAdminConfigured(): boolean {
 
 const ADMIN_APP_NAME = "shabbir-admin";
 
-function getAdminApp(): App {
+export function getAdminApp(): App {
   if (!isAdminConfigured()) {
     throw new Error(
       "Firebase Admin is not configured. Add FIREBASE_ADMIN_PROJECT_ID, " +
@@ -90,18 +89,3 @@ export function getAdminAuth(): Auth {
   return getAuth(getAdminApp());
 }
 
-/**
- * Server-side Firestore. BYPASSES SECURITY RULES.
- *
- * Used for reads the storefront makes on the server, where there is no
- * signed-in user to authorise - the product catalogue is public, so
- * there is nothing to protect, and going through the Admin SDK avoids
- * standing up an unauthenticated client connection per request.
- *
- * It must NOT become the way admin writes happen. Those go through the
- * client SDK so that firestore.rules actually gets exercised. A rule
- * that is never evaluated is a rule nobody knows is broken.
- */
-export function getAdminDb(): Firestore {
-  return getFirestore(getAdminApp());
-}
