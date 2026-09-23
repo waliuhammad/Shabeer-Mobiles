@@ -2,14 +2,24 @@
 
 A shop management platform for a mobile phone business in Multan, Pakistan — used handsets, accessories and a repairing lab.
 
-It is two systems sharing one codebase, one design language and one data layer:
+**The shop does not sell online.** This is an internal system, used in the
+shop by shop staff, to keep track of everything: stock, counter sales,
+customers, suppliers, purchases and money.
 
-- a **customer storefront** — browse, cart, checkout, order tracking
-- an **admin panel** — point of sale, inventory, purchasing, customers, and full financial reporting
+- **Point of sale** — ring up a counter sale; stock and the ledger move with it
+- **Inventory** — stock as the running total of an auditable ledger
+- **Purchasing** — suppliers, purchase orders, receiving
+- **Finance** — revenue, COGS, gross profit, expenses, net profit
+- **Catalogue and customers** — the records everything else refers to
 
-Built with the Next.js App Router, React 19 and Firebase Authentication.
+A customer-facing storefront exists in the codebase and is **switched off**
+behind one flag (`ONLINE_STORE_ENABLED`). It is kept alive and compiling
+rather than deleted, in case the business ever sells online.
 
-> **Status:** the interface is complete and the authentication is real. Business data still lives in mock files and browser storage — the Firestore migration is the next step. See [Current state](#current-state).
+Built with the Next.js App Router, React 19, Firebase Auth and Firestore.
+
+> **Status:** live. Authentication is real, Security Rules are deployed,
+> and all business data is in Firestore with real-time updates.
 
 ---
 
@@ -114,13 +124,17 @@ browser signs in (Firebase)
 
 Every order line and invoice line stores a `purchasePrice` snapshot. COGS reads that, never today's cost. If a supplier raises a price, last month's reported profit does not move.
 
-`data/product-costs.ts` holds the *current* cost and is used to value stock on hand. The two answer different questions and are never conflated.
+The `productCosts` collection holds the *current* cost and is used to value stock on hand. The two answer different questions and are never conflated.
 
-### Cost is admin-only, by type
+Cost is looked up **on the server** when a sale is recorded — a cashier is forbidden from reading it, so a cashier's browser could only ever have stamped a zero.
 
-`Product` deliberately cannot carry `purchasePrice`. One careless `getProducts()` on a public page would ship the shop's margins to every customer, and no Security Rule can undo a read that was legitimate. Cost lives in a separate record. A type that cannot carry cost cannot leak it.
+### Cost is admin-only, by type AND by rule
 
-Orders are stripped at the storefront boundary by `toCustomerOrder()`.
+`Product` deliberately cannot carry `purchasePrice`. One careless read of the catalogue would ship the shop's margins, and no Security Rule can undo a read that was legitimate. Cost lives in its own collection, which `firestore.rules` refuses to a cashier. A type that cannot carry cost cannot leak it.
+
+### Sales are recorded by the server, not the browser
+
+`app/api/sales/route.ts` recomputes every total from the product documents, looks up the real cost, checks stock against the database and issues the invoice number from a counter — all in one transaction. The till sends only *which products and how many*. A client that can name its own total is a client that can charge zero.
 
 ### Stock changes only through the ledger
 
@@ -140,19 +154,22 @@ Firebase keys and authorise the deployment domain in Firebase Auth.
 
 ```
 app/
-  (store)/      12 storefront routes
-  admin/        32 admin routes
+  (store)/      login, register (+ the switched-off storefront)
+  admin/        32 admin routes — the actual system
   api/auth/     session cookie endpoint
+  api/sales/    the trusted path for recording a counter sale
 components/     UI, grouped by feature
-context/        client state (cart, catalog, orders, finance, auth…)
-data/           mock datasets — replaced by Firestore
+context/        live Firestore subscriptions, one per collection
+services/       server-side reads via the Admin SDK
+data/           seed templates only — Firestore is the source of truth
 lib/            business logic, framework-free and unit-testable
   auth/dal.ts   the authorization boundary
   finance-utils.ts
   inventory-utils.ts
-scripts/        set-role.mjs
+  feature-flags.ts
+scripts/        set-role.mjs, seed-catalog.mjs
 types/          domain models
-firestore.rules Security Rules
+firestore.rules Security Rules — deployed
 proxy.ts        optimistic route redirects
 ```
 
@@ -160,13 +177,21 @@ Business rules live in `lib/` as pure functions with no React imports, so they c
 
 ## Current state
 
-**Working:** the full storefront and admin panel; real authentication with email/password, Google and phone OTP; server-verified sessions; role-based route protection; finance calculations verified by hand.
+**Working:** real authentication (email/password, Google, phone OTP) with
+server-verified sessions and roles as custom claims; Security Rules
+deployed; every collection in Firestore with live `onSnapshot` updates;
+counter sales recorded server-side with stock and ledger in one
+transaction; finance calculations verified by hand.
 
-**Not yet:**
+**Outstanding:**
 
-- **Data is mock.** `data/*.ts` plus `localStorage`. Admin edits do not reach the storefront, and `/account` shows the same orders to everyone. `firestore.rules` is written ahead of the migration so permissions are agreed before anything depends on them.
-- **No product images.** `images: []` is a valid state — the UI renders a branded placeholder.
-- **No payments, notifications or deployment.**
+- **No product images.** `images: []` is a valid state — the UI renders a
+  branded placeholder. Photos have to come from the shop.
+- **Shop map pin** not set; the map falls back to an address search.
+- **Settings** still saves to one browser rather than Firestore.
+- **Order and inventory writes** come from the browser. Rules permit staff,
+  but the safer end state is a server action, as counter sales already do.
+  Each rule site says so.
 
 ## Security notes
 
