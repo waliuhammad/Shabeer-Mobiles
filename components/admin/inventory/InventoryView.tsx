@@ -23,8 +23,7 @@ import { KpiCard } from "@/components/admin/KpiCard";
 import { InventoryTable } from "@/components/admin/inventory/InventoryTable";
 import { StockAdjustmentDialog } from "@/components/admin/inventory/StockAdjustmentDialog";
 import { useInventory } from "@/context/InventoryContext";
-import { getActiveProducts } from "@/data/products";
-import { categories } from "@/data/categories";
+import { useCatalog } from "@/context/CatalogContext";
 import {
   calculateInventorySummary,
   filterInventoryRows,
@@ -44,6 +43,7 @@ import type { InventoryRow, StockStatus } from "@/types";
  */
 export function InventoryView() {
   const { getStock, transactions } = useInventory();
+  const { activeProducts, categories, getCost } = useCatalog();
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -62,19 +62,22 @@ export function InventoryView() {
 
   const rows = useMemo(
     () =>
-      getActiveProducts().map((product) =>
+      activeProducts.map((product) =>
         toInventoryRow(
           product,
           getStock(product.id),
           latestByProduct.get(product.id)
         )
       ),
-    [getStock, latestByProduct]
+    [activeProducts, getStock, latestByProduct]
   );
 
   // Summary is over EVERY product, not the filtered view - "4 low stock"
   // must mean four in the shop, not four on this screen.
-  const summary = useMemo(() => calculateInventorySummary(rows), [rows]);
+  const summary = useMemo(
+    () => calculateInventorySummary(rows, getCost),
+    [rows, getCost]
+  );
 
   const visibleRows = useMemo(
     () => filterInventoryRows(rows, { query, category, status }),

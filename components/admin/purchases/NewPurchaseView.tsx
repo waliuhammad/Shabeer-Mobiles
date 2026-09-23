@@ -24,9 +24,10 @@ import {
 } from "@/components/ui/select";
 import { ProductImage } from "@/components/shared/ProductImage";
 import { usePurchasing } from "@/context/PurchasingContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useInventory } from "@/context/InventoryContext";
-import { getActiveProducts } from "@/data/products";
-import { getProductCost } from "@/data/product-costs";
+
+
 import {
   PURCHASE_PAYMENT_METHODS,
   PURCHASE_PAYMENT_METHOD_LABELS,
@@ -49,6 +50,7 @@ import type { Product, PurchaseDraftItem, PurchasePaymentMethod } from "@/types"
 export function NewPurchaseView() {
   const router = useRouter();
   const { suppliers, createPurchase } = usePurchasing();
+  const { activeProducts, getCost } = useCatalog();
   const { getStock } = useInventory();
 
   const [supplierId, setSupplierId] = useState("");
@@ -60,7 +62,7 @@ export function NewPurchaseView() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const products = useMemo(() => getActiveProducts(), []);
+  const products = activeProducts;
 
   // Only ACTIVE suppliers can receive new purchases. Inactive ones stay
   // in the system for their history but are not offered here.
@@ -109,7 +111,10 @@ export function NewPurchaseView() {
           name: product.name,
           sku: product.sku,
           quantity: 1,
-          purchasePrice: getProductCost(product.id),
+          // The LAST known cost, offered as a starting figure. The
+          // buyer overwrites it with what this delivery actually cost -
+          // that is the number frozen onto the purchase.
+          purchasePrice: getCost(product.id),
         },
         ...current,
       ];

@@ -1,5 +1,4 @@
 import { getStockStatus } from "@/lib/stock";
-import { getProductCost } from "@/data/product-costs";
 import type {
   InventoryRow,
   InventorySummary,
@@ -200,14 +199,30 @@ export function toInventoryRow(
  * actually sitting on the shelves. Valuing stock at retail would book
  * profit on goods that have not sold and might never sell.
  */
-export function calculateInventorySummary(rows: InventoryRow[]): InventorySummary {
+/**
+ * Cost is passed IN rather than imported.
+ *
+ * It used to read data/product-costs.ts directly, which quietly became
+ * wrong twice: once when that file was emptied (every stock value read
+ * Rs 0), and again when costs moved to Firestore, where they are behind
+ * a rule a cashier cannot pass. A function that reaches out for its own
+ * data cannot be told "you may not have this".
+ *
+ * Taking a lookup means the caller supplies whatever it is allowed to
+ * see - live costs for an owner, zeroes for a cashier - and this
+ * function stays honest either way.
+ */
+export function calculateInventorySummary(
+  rows: InventoryRow[],
+  getCost: (productId: string) => number
+): InventorySummary {
   return {
     totalProducts: rows.length,
     totalUnits: rows.reduce((sum, row) => sum + row.stock, 0),
     lowStockCount: rows.filter((r) => r.status === "low-stock").length,
     outOfStockCount: rows.filter((r) => r.status === "out-of-stock").length,
     costValue: rows.reduce(
-      (sum, row) => sum + row.stock * getProductCost(row.productId),
+      (sum, row) => sum + row.stock * getCost(row.productId),
       0
     ),
   };

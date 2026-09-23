@@ -1,7 +1,20 @@
-import { getProductCost } from "@/data/product-costs";
+/**
+ * NOTE ON WHERE AN INVOICE IS BUILT.
+ *
+ * It is NOT built here any more. buildInvoice() and the client-side cost
+ * stamp were removed when counter sales moved to app/api/sales/route.ts.
+ *
+ * The reason is worth keeping: a cashier is forbidden from reading
+ * productCosts, so a cashier's browser could only ever have stamped a
+ * cost of 0 - and every sale would have reported pure profit. The server
+ * looks the cost up where that rule does not apply, and recomputes every
+ * total from the product documents so the till cannot name its own.
+ *
+ * What remains here is the BILL ARITHMETIC the cashier sees on screen.
+ * It is a preview. The server decides what is actually charged.
+ */
+
 import type {
-  Invoice,
-  InvoiceLine,
   POSPaymentMethod,
   POSPaymentStatus,
   POSCartItem,
@@ -127,36 +140,6 @@ export function productToPOSItem(product: Product, quantity = 1): POSCartItem {
   };
 }
 
-/** POS line -> frozen invoice line, with its total baked in. */
-function posItemToInvoiceLine(item: POSCartItem): InvoiceLine {
-  return {
-    productId: item.productId,
-    name: item.name,
-    sku: item.sku,
-    quantity: item.quantity,
-    price: item.price,
-    total: item.price * item.quantity,
-    /**
-     * THE COST SNAPSHOT, taken at the instant the bill is completed.
-     *
-     * Read from data/product-costs.ts HERE and then frozen onto the
-     * invoice. Reading it later would be wrong: the invoice is a
-     * historical document, so next month's supplier price rise must not
-     * retroactively change what this sale cost.
-     *
-     * The cashier never sees this value - POSCartItem has no cost field,
-     * so it is not in the terminal's state and cannot reach the screen
-     * or the printed receipt. It is stamped on during invoice creation
-     * only, for the admin finance pages.
-     *
-     * PHASE 2: the browser must not supply this at all. A Cloud Function
-     * looks the cost up server-side when it writes the sale, because a
-     * client that can name its own COGS can report any profit it likes.
-     */
-    purchasePrice: getProductCost(item.productId),
-  };
-}
-
 /* ==================================================================
    INVOICE NUMBERS
 
@@ -246,46 +229,6 @@ export function validateBill(
 /* ==================================================================
    BUILDING THE MOCK INVOICE
    ================================================================== */
-
-export function buildInvoice(params: {
-  invoiceNumber: string;
-  customerId: string;
-  customerName: string;
-  customerPhone: string;
-  items: POSCartItem[];
-  totals: POSTotals;
-  paymentMethod: POSPaymentMethod;
-  cashierName: string;
-}): Invoice {
-  const {
-    invoiceNumber,
-    customerId,
-    customerName,
-    customerPhone,
-    items,
-    totals,
-    paymentMethod,
-    cashierName,
-  } = params;
-
-  return {
-    id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    invoiceNumber,
-    customerId,
-    customerName,
-    customerPhone,
-    items: items.map(posItemToInvoiceLine),
-    subtotal: totals.subtotal,
-    discount: totals.discount,
-    total: totals.total,
-    paidAmount: totals.paidAmount,
-    dueAmount: totals.dueAmount,
-    paymentMethod,
-    paymentStatus: totals.paymentStatus,
-    createdAt: new Date().toISOString(),
-    cashierName,
-  };
-}
 
 export const PAYMENT_METHOD_LABELS: Record<POSPaymentMethod, string> = {
   cash: "Cash",

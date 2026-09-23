@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Search, X, PackageSearch } from "lucide-react";
 import { POSProductCard } from "@/components/admin/billing/POSProductCard";
-import { getActiveProducts } from "@/data/products";
+import { useCatalog } from "@/context/CatalogContext";
 import type { Product } from "@/types";
 
 interface POSProductSearchProps {
@@ -25,13 +25,16 @@ export function POSProductSearch({
   onAdd,
   getBilledQuantity,
 }: POSProductSearchProps) {
+  // Live catalogue, so a product added or repriced in /admin/products
+  // is sellable at the counter immediately.
+  const { activeProducts } = useCatalog();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Loaded once. In Phase 2 this becomes a Firestore query, and for a
   // counter it is worth keeping the catalogue in memory: the shop's
   // internet dropping should not stop them ringing up a sale.
-  const products = useMemo(() => getActiveProducts(), []);
+  const products = activeProducts;
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -15,7 +15,7 @@ import { ProductImage } from "@/components/shared/ProductImage";
 import { InventoryTransactionTable } from "@/components/admin/inventory/InventoryTransactionTable";
 import { StockAdjustmentDialog } from "@/components/admin/inventory/StockAdjustmentDialog";
 import { useInventory } from "@/context/InventoryContext";
-import { getProductCost } from "@/data/product-costs";
+import { useCatalog } from "@/context/CatalogContext";
 import {
   sortTransactionsNewestFirst,
   toInventoryRow,
@@ -38,6 +38,7 @@ interface ProductInventoryViewProps {
  * bottom answers "why is it 3?" - which a bare number never can.
  */
 export function ProductInventoryView({ product }: ProductInventoryViewProps) {
+  const { getCost } = useCatalog();
   const { getStock, getProductTransactions } = useInventory();
   const [adjusting, setAdjusting] = useState<InventoryRow | null>(null);
 
@@ -57,7 +58,10 @@ export function ProductInventoryView({ product }: ProductInventoryViewProps) {
   );
 
   const style = STOCK_STATUS_STYLES[row.status];
-  const cost = getProductCost(product.id);
+  // Live cost from the protected collection. Returns 0 for a cashier,
+  // who is not permitted to read it - the UI shows a dash rather than
+  // pretending the cost is zero.
+  const cost = getCost(product.id);
 
   return (
     <>

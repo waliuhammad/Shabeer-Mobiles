@@ -22,7 +22,7 @@ import { POSSummary } from "@/components/admin/billing/POSSummary";
 import { InvoicePreview } from "@/components/admin/billing/InvoicePreview";
 import { usePOS } from "@/hooks/use-pos";
 import { useInvoices } from "@/context/InvoicesContext";
-import { buildInvoice, validateBill } from "@/lib/pos-utils";
+import { validateBill } from "@/lib/pos-utils";
 import type { Invoice } from "@/types";
 
 /**
@@ -39,7 +39,9 @@ export function POSTerminal() {
   // Completed counter sales live in the shared store, so the bill
   // numbering continues past everything already rung up instead of
   // restarting at 1 on every page load and colliding.
-  const { recordInvoice, nextInvoiceSequence } = useInvoices();
+  // The server issues invoice numbers from a counter document now, so
+  // the till no longer guesses the next one.
+  const { nextInvoiceSequence } = useInvoices();
   const pos = usePOS(nextInvoiceSequence);
   // The bill carries a customer ID; the name for validation and the
   // printed receipt is looked up from the ONE central directory.
@@ -56,6 +58,7 @@ export function POSTerminal() {
    */
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [saving, setSaving] = useState(false);
   const [confirmNewBill, setConfirmNewBill] = useState(false);
 
   const hasItems = pos.items.length > 0;
@@ -67,7 +70,7 @@ export function POSTerminal() {
    * movements are Step 4, and they belong to the server regardless - see
    * the flow documented at the bottom of lib/pos-utils.ts.
    */
-  function handleSaveBill() {
+  async function handleSaveBill() {
     const result = validateBill(
       pos.items,
       customer?.name ?? "",
@@ -83,34 +86,59 @@ export function POSTerminal() {
       return;
     }
 
-    const invoice = buildInvoice({
-      invoiceNumber: pos.invoiceNumber,
-      // The RELATIONSHIP plus a snapshot of what gets printed.
-      customerId: pos.customerId,
-      customerName: customer?.name ?? "Walk-in Customer",
-      customerPhone: customer?.phone ?? "",
-      items: pos.items,
-      totals: pos.totals,
-      paymentMethod: pos.paymentMethod,
-      // Placeholder until staff accounts exist.
-      cashierName: "Shop Owner",
-    });
+    /**
+     * THE SALE IS RECORDED BY THE SERVER, not here.
+     *
+     * The browser sends only which products and how many. The server
+     * recomputes every total from the product documents, looks up the
+     * cost a cashier is not allowed to read, checks stock against the
+     * database, and writes the invoice, the stock change and the ledger
+     * rows in one transaction.
+     *
+     * That is what makes the profit figures trustworthy: a till that
+     * could name its own totals and its own costs could report any
+     * profit it liked.
+     */
+    setSaving(true);
+    try {
+      const response = await fetch("/api/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: pos.customerId,
+          items: pos.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          discount: pos.discount,
+          paidAmount: pos.paidAmount,
+          paymentMethod: pos.paymentMethod,
+        }),
+      });
 
-    // THE SALE BECOMES A BUSINESS RECORD HERE. This is the single point
-    // where a finished bill enters revenue - the invoice carries its own
-    // cost snapshot, so COGS for this sale is fixed from now on.
-    recordInvoice(invoice);
+      const payload: { invoice?: Invoice; error?: string } = await response.json();
 
-    setInvoices((current) => [invoice, ...current]);
-    setPreviewInvoice(invoice);
+      if (!response.ok || !payload.invoice) {
+        toast.error("Sale not recorded.", {
+          description: payload.error ?? "The server refused the sale.",
+        });
+        return;
+      }
 
-    toast.success("Bill saved successfully.", {
-      description: `${invoice.invoiceNumber} · no stock was deducted (Step 4).`,
-    });
+      const invoice = payload.invoice;
+      setInvoices((current) => [invoice, ...current]);
+      setPreviewInvoice(invoice);
 
-    // Clear the till, ready for the next customer. The invoice stays open
-    // behind this, and in `invoices`, so nothing is lost.
-    pos.startNewBill();
+      toast.success("Sale recorded.", {
+        description: `${invoice.invoiceNumber} · stock updated`,
+      });
+
+      // Clear the till, ready for the next customer.
+      pos.startNewBill();
+    } catch {
+      toast.error("Could not reach the server.", {
+        description: "The sale was NOT recorded. Check the connection and try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   /** Guarded: never wipe a bill the cashier is still building. */
@@ -219,11 +247,13 @@ export function POSTerminal() {
             <Button
               type="button"
               onClick={handleSaveBill}
-              disabled={!hasItems}
+              // Disabled while the server is recording it, so a double
+              // click cannot ring the same sale up twice.
+              disabled={!hasItems || saving}
               className="h-12 w-full gap-2 bg-accent text-base font-semibold text-accent-foreground hover:bg-gold-deep"
             >
               <Save className="size-4" aria-hidden="true" />
-              Save Bill
+              {saving ? "Recording sale..." : "Save Bill"}
             </Button>
 
             {invoices.length > 0 && (

@@ -9,8 +9,7 @@ import { useExpenses } from "@/context/ExpensesContext";
 import { useInventory } from "@/context/InventoryContext";
 import { getFinancialSummary, getRevenueEntries } from "@/lib/finance-utils";
 import { resolvePeriod } from "@/lib/date-range";
-import { products } from "@/data/products";
-import { getProductCost } from "@/data/product-costs";
+import { useCatalog } from "@/context/CatalogContext";
 import { formatPrice } from "@/lib/utils";
 
 /**
@@ -37,6 +36,7 @@ export function DashboardKpis() {
   const { invoices } = useInvoices();
   const { expenses } = useExpenses();
   const { getStock } = useInventory();
+  const { products, getCost } = useCatalog();
 
   const today = useMemo(() => resolvePeriod("today"), []);
 
@@ -61,10 +61,10 @@ export function DashboardKpis() {
   const stockValue = useMemo(
     () =>
       products.reduce(
-        (sum, p) => sum + getStock(p.id) * getProductCost(p.id),
+        (sum, p) => sum + getStock(p.id) * getCost(p.id),
         0
       ),
-    [getStock]
+    [getStock, products, getCost]
   );
 
   return (
