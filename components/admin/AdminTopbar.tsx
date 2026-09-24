@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Search, Bell, ChevronDown, User, Settings, LogOut, Store } from "lucide-react";
+import { Search, ChevronDown, User, Settings, LogOut, Store } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AdminMobileNav } from "@/components/admin/AdminMobileNav";
+import { AdminNotifications } from "@/components/admin/AdminNotifications";
 import { getAdminPageTitle } from "@/lib/admin-nav";
 import { STAFF_DIRECTORY_ENABLED } from "@/lib/feature-flags";
 
@@ -60,7 +61,7 @@ export function AdminTopbar() {
       toast.error("Could not sign out. Try again.");
     }
   }
-  const unreadCount = 3;
+
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:gap-3 sm:px-5">
@@ -96,24 +97,7 @@ export function AdminTopbar() {
       </form>
 
       <div className="ml-auto flex items-center gap-1 md:ml-2">
-        <button
-          type="button"
-          // An icon-only button MUST carry an accessible name, and the
-          // count belongs in it - "Notifications" alone would not tell a
-          // screen reader user there are three waiting.
-          aria-label={`Notifications, ${unreadCount} unread`}
-          className="relative inline-flex size-9 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted"
-        >
-          <Bell className="size-4.5" aria-hidden="true" />
-          {unreadCount > 0 && (
-            <span
-              aria-hidden="true"
-              className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold tabular-nums text-white"
-            >
-              {unreadCount}
-            </span>
-          )}
-        </button>
+        <AdminNotifications />
 
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-muted">
