@@ -1,6 +1,5 @@
-import { notFound } from "next/navigation";
-import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -65,15 +64,7 @@ const WHY_CHOOSE_US = [
   },
 ];
 
-/**
- * DISABLED - the shop does not sell online.
- *
- * The page is kept whole and still type-checks; it simply 404s while
- * ONLINE_STORE_ENABLED is false. Flip that flag in lib/feature-flags.ts
- * to bring it back.
- */
 export default function AboutPage() {
-  if (!ONLINE_STORE_ENABLED) notFound();
 
   return (
     <>
@@ -121,10 +112,20 @@ export default function AboutPage() {
               asChild
               className="h-11 gap-2 bg-accent px-6 font-semibold text-accent-foreground hover:bg-gold-deep"
             >
-              <Link href="/shop">
-                Browse Products
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </Link>
+              {/* "Browse Products" needs products to browse. With the shop
+                  off it would lead to a 404, so the call to action becomes
+                  the one the business actually wants: call or come in. */}
+              {ONLINE_STORE_ENABLED ? (
+                <Link href="/shop">
+                  Browse Products
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              ) : (
+                <a href={`tel:${BUSINESS.phone}`}>
+                  Call the shop
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </a>
+              )}
             </Button>
             <Button asChild variant="outline" className="h-11 px-6 font-semibold">
               <Link href="/contact">Contact Us</Link>

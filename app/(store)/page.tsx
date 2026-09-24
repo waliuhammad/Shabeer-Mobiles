@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
-import { HOME_REDIRECT } from "@/lib/feature-flags";
+import { ShopWindow } from "@/components/home/ShopWindow";
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { Container } from "@/components/shared/Container";
 import { SectionHeading } from "@/components/shared/SectionHeading";
@@ -31,17 +31,20 @@ export const metadata: Metadata = {
  * page renders" held, exactly as the earlier note predicted.
  */
 /**
- * The shop window - DISABLED while the business does not sell online.
+ * The front page.
  *
- * Kept intact rather than deleted: it still compiles and type-checks, so
- * it cannot rot. Turning ONLINE_STORE_ENABLED back on in
- * lib/feature-flags.ts restores it exactly as it was.
+ * TWO VERSIONS, ONE FLAG. While the shop does not sell online, this
+ * renders ShopWindow: address, hours, contact, services and a map, with
+ * no products and no cart. The full storefront below it - featured
+ * products, categories, browse - is kept intact and still compiles, and
+ * returns the moment ONLINE_STORE_ENABLED is true.
  *
- * Until then the root sends staff to the admin panel, which bounces
- * anyone who is not signed in to the login page.
+ * It redirected to /admin before, which left the site with no public
+ * page at all: signing out or clicking "exit to store" simply looped
+ * back to login.
  */
 export default async function HomePage() {
-  if (HOME_REDIRECT) redirect(HOME_REDIRECT);
+  if (!ONLINE_STORE_ENABLED) return <ShopWindow />;
 
   // Run together rather than one after the other. Both hit the same
   // cached getActiveProducts() underneath, so this is one read, not two.

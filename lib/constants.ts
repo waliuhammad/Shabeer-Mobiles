@@ -1,3 +1,5 @@
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
+
 /**
  * Single source of truth for fixed business information.
  *
@@ -126,38 +128,68 @@ export interface NavLink {
   href: string;
 }
 
-export const STORE_NAV: NavLink[] = [
-  { label: "Home", href: "/" },
-  { label: "Shop", href: "/shop" },
-  { label: "Categories", href: "/#categories" },
-  { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
-];
+/**
+ * The public navigation.
+ *
+ * Shop and Categories only exist when the business sells online. Listing
+ * them while the shop is off would put two 404s in the header, and a
+ * navigation bar that leads nowhere is worse than a short one.
+ */
+export const STORE_NAV: NavLink[] = ONLINE_STORE_ENABLED
+  ? [
+      { label: "Home", href: "/" },
+      { label: "Shop", href: "/shop" },
+      { label: "Categories", href: "/#categories" },
+      { label: "About", href: "/about" },
+      { label: "Contact", href: "/contact" },
+    ]
+  : [
+      { label: "Home", href: "/" },
+      { label: "Services", href: "/#services" },
+      { label: "About", href: "/about" },
+      { label: "Contact", href: "/contact" },
+    ];
 
-export const FOOTER_QUICK_LINKS: NavLink[] = [
-  { label: "Home", href: "/" },
-  { label: "Shop All", href: "/shop" },
-  { label: "About Us", href: "/about" },
-  { label: "Contact", href: "/contact" },
-  { label: "Visit Our Shop", href: "/#visit" },
-];
+export const FOOTER_QUICK_LINKS: NavLink[] = ONLINE_STORE_ENABLED
+  ? [
+      { label: "Home", href: "/" },
+      { label: "Shop All", href: "/shop" },
+      { label: "About Us", href: "/about" },
+      { label: "Contact", href: "/contact" },
+      { label: "Visit Our Shop", href: "/#visit" },
+    ]
+  : [
+      { label: "Home", href: "/" },
+      { label: "About Us", href: "/about" },
+      { label: "Contact", href: "/contact" },
+      { label: "Visit Our Shop", href: "/#visit" },
+    ];
 
-export const FOOTER_SHOP_LINKS: NavLink[] = [
-  { label: "Used Mobiles", href: "/shop?category=used-mobiles" },
-  { label: "Chargers", href: "/shop?category=chargers" },
-  { label: "Covers", href: "/shop?category=covers" },
-  { label: "AirPods", href: "/shop?category=airpods" },
-  { label: "Power Banks", href: "/shop?category=power-banks" },
-];
+/**
+ * Category shortcuts. Empty while the shop is off - every one of them
+ * points at /shop, which 404s. The footer hides the whole column when
+ * this is empty rather than printing a heading with nothing under it.
+ */
+export const FOOTER_SHOP_LINKS: NavLink[] = ONLINE_STORE_ENABLED
+  ? [
+      { label: "Used Mobiles", href: "/shop?category=used-mobiles" },
+      { label: "Chargers", href: "/shop?category=chargers" },
+      { label: "Covers", href: "/shop?category=covers" },
+      { label: "AirPods", href: "/shop?category=airpods" },
+      { label: "Power Banks", href: "/shop?category=power-banks" },
+    ]
+  : [];
 
 /** Account and order self-service links. */
-export const FOOTER_CUSTOMER_LINKS: NavLink[] = [
-  { label: "My Account", href: "/account" },
-  { label: "Track Order", href: "/tracking" },
-  { label: "My Wishlist", href: "/wishlist" },
-  { label: "Shopping Cart", href: "/cart" },
-  { label: "Login", href: "/login" },
-];
+export const FOOTER_CUSTOMER_LINKS: NavLink[] = ONLINE_STORE_ENABLED
+  ? [
+      { label: "My Account", href: "/account" },
+      { label: "Track Order", href: "/tracking" },
+      { label: "My Wishlist", href: "/wishlist" },
+      { label: "Shopping Cart", href: "/cart" },
+      { label: "Login", href: "/login" },
+    ]
+  : [{ label: "Staff Login", href: "/login" }];
 
 export const FOOTER_SERVICE_LINKS: NavLink[] = [
   { label: "Mobile Repairing", href: "/#services" },

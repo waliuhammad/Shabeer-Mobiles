@@ -48,7 +48,11 @@ export function StoreFooter() {
           </div>
 
           <FooterLinkColumn title="Quick Links" links={FOOTER_QUICK_LINKS} />
-          <FooterLinkColumn title="Shop" links={FOOTER_SHOP_LINKS} />
+          {/* Hidden entirely when empty - a heading with nothing under
+              it looks like a rendering fault. */}
+          {FOOTER_SHOP_LINKS.length > 0 && (
+            <FooterLinkColumn title="Shop" links={FOOTER_SHOP_LINKS} />
+          )}
           <FooterLinkColumn title="Customer Service" links={FOOTER_CUSTOMER_LINKS} />
 
           {/* Contact column */}

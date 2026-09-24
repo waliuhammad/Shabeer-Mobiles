@@ -1,5 +1,3 @@
-import { notFound } from "next/navigation";
-import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { Phone, MessageCircle, MapPin, Clock, Mail } from "lucide-react";
 import { Container } from "@/components/shared/Container";
@@ -26,15 +24,7 @@ export const metadata: Metadata = {
  */
 const HAS_CONFIRMED_EMAIL = true;
 
-/**
- * DISABLED - the shop does not sell online.
- *
- * The page is kept whole and still type-checks; it simply 404s while
- * ONLINE_STORE_ENABLED is false. Flip that flag in lib/feature-flags.ts
- * to bring it back.
- */
 export default function ContactPage() {
-  if (!ONLINE_STORE_ENABLED) notFound();
 
   return (
     <>

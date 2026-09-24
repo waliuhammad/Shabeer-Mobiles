@@ -3,6 +3,7 @@ import { Phone, MapPin } from "lucide-react";
 import { Container } from "@/components/shared/Container";
 import { Logo } from "@/components/shared/Logo";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { MobileMenu } from "@/components/navigation/MobileMenu";
 import { CartLink } from "@/components/layout/CartLink";
@@ -59,18 +60,28 @@ export function StoreHeader() {
             ))}
           </nav>
 
-          <div className="ml-auto hidden max-w-xs flex-1 md:block lg:max-w-sm">
-            <SearchBar placeholder="Search products..." />
-          </div>
+          {/* Search goes to /shop, which does not exist while the shop
+              is off. */}
+          {ONLINE_STORE_ENABLED && (
+            <div className="ml-auto hidden max-w-xs flex-1 md:block lg:max-w-sm">
+              <SearchBar placeholder="Search products..." />
+            </div>
+          )}
 
           <div className="ml-auto flex items-center gap-1 md:ml-2">
             {/* Client island: a login link when signed out, an account
                 menu with Sign Out when signed in. */}
             <UserMenu />
 
-            {/* Client islands - each reads its own context for a live count. */}
-            <WishlistLink />
-            <CartLink />
+            {/* Cart and wishlist only exist when the shop sells online.
+                With it off, /cart and /wishlist 404, so the icons go
+                rather than offering a dead end. */}
+            {ONLINE_STORE_ENABLED && (
+              <>
+                <WishlistLink />
+                <CartLink />
+              </>
+            )}
           </div>
         </Container>
       </div>
