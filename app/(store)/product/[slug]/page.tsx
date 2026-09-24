@@ -15,6 +15,20 @@ import {
 } from "@/services/catalog.service";
 
 /**
+ * Refresh each product page at most once a minute, in the background.
+ *
+ * generateStaticParams below prerenders these at build time, which is
+ * what makes them fast. Without a revalidation window that speed came
+ * at the cost of the page being frozen: the price, the stock badge and
+ * "Only 3 left" were whatever they had been at the last deploy, no
+ * matter what the shop did afterwards in the admin panel.
+ *
+ * Stock is the sharpest case. A page that says "In Stock" about the
+ * last unit, sold days ago, sends somebody across Multan for nothing.
+ */
+export const revalidate = 60;
+
+/**
  * PRE-RENDER EVERY PRODUCT PAGE AT BUILD TIME.
  *
  * Next.js calls this during `next build`, gets back a list of slugs, and

@@ -10,6 +10,33 @@ import { VisitShop } from "@/components/home/VisitShop";
 import { ServicesSection } from "@/components/home/ServicesSection";
 import { getFeaturedProducts, getBestSellers } from "@/services/catalog.service";
 
+/**
+ * Rebuild this page at most once a minute, in the background.
+ *
+ * WHY IT IS HERE AT ALL
+ * ---------------------
+ * Without it Next.js prerenders this page ONCE, at deploy time, and
+ * serves that copy for ever. The prices, stock badges and featured
+ * products below come from Firestore, so the effect was that changing a
+ * price in the admin panel never reached the shop's own website - it
+ * kept advertising the old one until somebody happened to redeploy.
+ * Measured, not assumed: a marker written into Firestore was still
+ * missing from the live page 90 seconds later.
+ *
+ * WHY 60 AND NOT 0
+ * ----------------
+ * Rendering per request would always be current, but every visitor
+ * would then wait on a Firestore round trip - the uncached /shop page
+ * was taking over three seconds. With this, visitors are served an
+ * instant cached copy and the copy is never more than a minute old.
+ * For a price on a shop window, a minute is nothing; three seconds of
+ * staring at a blank page is not.
+ *
+ * The ADMIN panel is unaffected and stays instant: it reads Firestore
+ * through onSnapshot in the browser, not through this page.
+ */
+export const revalidate = 60;
+
 export const metadata: Metadata = {
   // Combined with the template in app/layout.tsx:
   // "Mobiles, Accessories & Repairing in Multan | Shabbir Mobiles"

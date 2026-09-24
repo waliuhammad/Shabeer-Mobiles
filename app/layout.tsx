@@ -4,6 +4,7 @@ import "./globals.css";
 import { BUSINESS, FULL_ADDRESS } from "@/lib/constants";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -69,6 +70,26 @@ export const metadata: Metadata = {
  * Neither provider renders any markup - they only supply a context value -
  * so wrapping the whole app costs nothing, and pages passed through as
  * `children` stay server-rendered.
+ *
+ * The cart and wishlist are mounted only while ONLINE_ORDERING_ENABLED.
+ * With ordering off nothing reads either one - no Add to Cart, no
+ * wishlist hearts, and /cart and /wishlist 404 - so a public visitor is
+ * not given two contexts and two localStorage reads for features that do
+ * not exist.
+ *
+ * AuthProvider STAYS HERE, and an attempt to move it was reverted.
+ *
+ * The theory was good: the public catalogue has no sign-in, so it should
+ * not pay for the Firebase Auth SDK. The measurement disagreed. That SDK
+ * lives in a chunk Next.js shares across routes - /about, /contact and
+ * even a 404 all load it - because /login and /admin need it, and a
+ * module used by more than one route is hoisted into the common bundle.
+ * Moving the provider to those routes changed the downloaded bytes by
+ * zero, three times over, while adding a seam to the sign-in path that
+ * has already broken twice.
+ *
+ * Removing it for real would mean splitting the auth routes out of this
+ * bundle, which is a much larger change than ~36 KB gzipped is worth.
  */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -79,9 +100,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         <AuthProvider>
-          <CartProvider>
-          <WishlistProvider>{children}</WishlistProvider>
-        </CartProvider>
+          {ONLINE_ORDERING_ENABLED ? (
+            <CartProvider>
+              <WishlistProvider>{children}</WishlistProvider>
+            </CartProvider>
+          ) : (
+            children
+          )}
         </AuthProvider>
 
         {/* Mounted once, at the root, so toast() works from any route.
