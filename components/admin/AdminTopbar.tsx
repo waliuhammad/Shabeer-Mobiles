@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AdminMobileNav } from "@/components/admin/AdminMobileNav";
 import { getAdminPageTitle } from "@/lib/admin-nav";
+import { STAFF_DIRECTORY_ENABLED } from "@/lib/feature-flags";
 
 /**
  * The admin topbar: menu button, page title, search, notifications,
@@ -142,12 +143,18 @@ export function AdminTopbar() {
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/admin/users">
-                <User className="size-4" aria-hidden="true" />
-                Profile
-              </Link>
-            </DropdownMenuItem>
+            {/* "Profile" pointed at the staff directory, which 404s while
+                that section is off. It was never a profile page anyway -
+                the signed-in name and role are already shown just above,
+                which is all it offered. */}
+            {STAFF_DIRECTORY_ENABLED && (
+              <DropdownMenuItem asChild>
+                <Link href="/admin/users">
+                  <User className="size-4" aria-hidden="true" />
+                  Profile
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href="/admin/settings">
                 <Settings className="size-4" aria-hidden="true" />

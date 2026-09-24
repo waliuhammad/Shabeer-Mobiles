@@ -1,13 +1,22 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, MapPin, ShieldCheck, Wrench, Truck } from "lucide-react";
+import { ArrowRight, MapPin, ShieldCheck, Wrench, Truck, Store } from "lucide-react";
 import { Container } from "@/components/shared/Container";
 import { Button } from "@/components/ui/button";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 
+/**
+ * Delivery is something an ONLINE ORDER gets. With ordering off, the
+ * site offers no way to ask for it and records no address, so the claim
+ * comes out and the shop's actual promise goes in. The product pages say
+ * the same thing, from the same flag, so the two cannot disagree.
+ */
 const TRUST_POINTS = [
   { Icon: ShieldCheck, label: "Genuine Products" },
   { Icon: Wrench, label: "Expert Repairing" },
-  { Icon: Truck, label: "City-wide Delivery" },
+  ONLINE_ORDERING_ENABLED
+    ? { Icon: Truck, label: "City-wide Delivery" }
+    : { Icon: Store, label: "Buy at the Counter" },
 ];
 
 export function Hero() {

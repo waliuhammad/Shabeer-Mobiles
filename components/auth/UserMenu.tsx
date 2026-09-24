@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/context/AuthContext";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 
 /**
  * The storefront account control.
@@ -92,24 +93,33 @@ export function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem asChild>
-          <Link href="/account">
-            <User className="size-4" aria-hidden="true" />
-            My Account
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/tracking">
-            <Package className="size-4" aria-hidden="true" />
-            Track an Order
-          </Link>
-        </DropdownMenuItem>
+        {/* Customer self-service. Both 404 while ordering is off, and
+            with no online orders there is nothing for either to show. */}
+        {ONLINE_ORDERING_ENABLED && (
+          <>
+            <DropdownMenuItem asChild>
+              <Link href="/account">
+                <User className="size-4" aria-hidden="true" />
+                My Account
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/tracking">
+                <Package className="size-4" aria-hidden="true" />
+                Track an Order
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
 
         {/* Shown only to staff. This is convenience, not security - the
             admin layout verifies the claim server-side regardless. */}
         {user.isStaff && (
           <>
-            <DropdownMenuSeparator />
+            {/* Only when something sits above it. With the customer items
+                gone this would otherwise double up with the separator
+                under the name. */}
+            {ONLINE_ORDERING_ENABLED && <DropdownMenuSeparator />}
             <DropdownMenuItem asChild>
               <Link href="/admin">
                 <LayoutDashboard className="size-4" aria-hidden="true" />

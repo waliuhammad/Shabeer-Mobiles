@@ -6,10 +6,18 @@ interface AuthShellProps {
   title: string;
   subtitle: string;
   children: React.ReactNode;
-  /** The "Don't have an account? Register" line at the bottom. */
-  footerPrompt: string;
-  footerLinkLabel: string;
-  footerLinkHref: string;
+  /**
+   * The "Don't have an account? Register" line at the bottom.
+   *
+   * OPTIONAL, all three together. With customer accounts switched off
+   * there is nowhere for that line to point - /register 404s - and a
+   * sign-in page for staff has no second page to offer. Omit them and
+   * the line is not rendered at all, rather than rendering a prompt with
+   * a dead link in it.
+   */
+  footerPrompt?: string;
+  footerLinkLabel?: string;
+  footerLinkHref?: string;
 }
 
 /**
@@ -45,15 +53,17 @@ export function AuthShell({
           {children}
         </div>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          {footerPrompt}{" "}
-          <Link
-            href={footerLinkHref}
-            className="font-semibold text-secondary transition-colors hover:text-primary"
-          >
-            {footerLinkLabel}
-          </Link>
-        </p>
+        {footerPrompt && footerLinkLabel && footerLinkHref && (
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            {footerPrompt}{" "}
+            <Link
+              href={footerLinkHref}
+              className="font-semibold text-secondary transition-colors hover:text-primary"
+            >
+              {footerLinkLabel}
+            </Link>
+          </p>
+        )}
       </div>
     </Container>
   );

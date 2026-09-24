@@ -1,4 +1,4 @@
-import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
+import { ONLINE_STORE_ENABLED, ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 
 /**
  * Single source of truth for fixed business information.
@@ -180,8 +180,14 @@ export const FOOTER_SHOP_LINKS: NavLink[] = ONLINE_STORE_ENABLED
     ]
   : [];
 
-/** Account and order self-service links. */
-export const FOOTER_CUSTOMER_LINKS: NavLink[] = ONLINE_STORE_ENABLED
+/**
+ * Account and order self-service links.
+ *
+ * Gated on ORDERING rather than the store: the catalogue can be fully
+ * public while none of these exist, which is the current arrangement.
+ * Only staff sign-in survives.
+ */
+export const FOOTER_CUSTOMER_LINKS: NavLink[] = ONLINE_ORDERING_ENABLED
   ? [
       { label: "My Account", href: "/account" },
       { label: "Track Order", href: "/tracking" },

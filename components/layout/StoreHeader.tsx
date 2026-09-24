@@ -3,7 +3,7 @@ import { Phone, MapPin } from "lucide-react";
 import { Container } from "@/components/shared/Container";
 import { Logo } from "@/components/shared/Logo";
 import { UserMenu } from "@/components/auth/UserMenu";
-import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
+import { ONLINE_STORE_ENABLED, ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { MobileMenu } from "@/components/navigation/MobileMenu";
 import { CartLink } from "@/components/layout/CartLink";
@@ -73,10 +73,11 @@ export function StoreHeader() {
                 menu with Sign Out when signed in. */}
             <UserMenu />
 
-            {/* Cart and wishlist only exist when the shop sells online.
-                With it off, /cart and /wishlist 404, so the icons go
-                rather than offering a dead end. */}
-            {ONLINE_STORE_ENABLED && (
+            {/* Cart and wishlist belong to ORDERING, not to the
+                catalogue. The shop can be fully browsable - as it is now -
+                while /cart and /wishlist 404, so the icons go rather than
+                offering a dead end. */}
+            {ONLINE_ORDERING_ENABLED && (
               <>
                 <WishlistLink />
                 <CartLink />

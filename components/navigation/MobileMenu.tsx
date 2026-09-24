@@ -15,16 +15,25 @@ import {
 import { Logo } from "@/components/shared/Logo";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { STORE_NAV, BUSINESS, FULL_ADDRESS } from "@/lib/constants";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 
-/** Shown only in the drawer - the desktop header uses icons for these. */
-const ACCOUNT_LINKS = [
-  { label: "My Account", href: "/account" },
-  { label: "Track Order", href: "/tracking" },
-  { label: "My Wishlist", href: "/wishlist" },
-  { label: "Cart", href: "/cart" },
-  { label: "Login / Register", href: "/login" },
-];
+/**
+ * Shown only in the drawer - the desktop header uses icons for these.
+ *
+ * All but one of these are customer self-service, and they 404 while
+ * ONLINE_ORDERING_ENABLED is false. Sign-in stays, because that is how
+ * staff reach the admin panel, and it is labelled for them.
+ */
+const ACCOUNT_LINKS = ONLINE_ORDERING_ENABLED
+  ? [
+      { label: "My Account", href: "/account" },
+      { label: "Track Order", href: "/tracking" },
+      { label: "My Wishlist", href: "/wishlist" },
+      { label: "Cart", href: "/cart" },
+      { label: "Login / Register", href: "/login" },
+    ]
+  : [{ label: "Staff Login", href: "/login" }];
 
 /**
  * The mobile navigation drawer.

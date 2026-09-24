@@ -1,6 +1,8 @@
-import { Star, Check, Package, Truck, ShieldCheck, Store } from "lucide-react";
+import { Star, Check, Package, Truck, ShieldCheck, Store, Phone } from "lucide-react";
 import { PriceDisplay } from "@/components/shared/PriceDisplay";
 import { ProductActions } from "@/components/products/ProductActions";
+import { CounterOnlyNotice } from "@/components/products/CounterOnlyNotice";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import type { Product } from "@/types";
 
 interface ProductInfoProps {
@@ -104,14 +106,31 @@ export function ProductInfo({ product }: ProductInfoProps) {
         </div>
       )}
 
-      {/* --- Quantity + Add to Cart + Buy Now (client island) --- */}
-      <ProductActions product={product} />
+      {/* --- How to actually get it ---
+
+          The branch is HERE, not inside ProductActions, because the two
+          sides are different kinds of component. ProductActions is a
+          client island built around the cart; CounterOnlyNotice is
+          static server-rendered HTML. Choosing between them at the call
+          site means that with ordering off, the cart island is never
+          imported into the page and none of its JavaScript is sent. */}
+      {ONLINE_ORDERING_ENABLED ? (
+        <ProductActions product={product} />
+      ) : (
+        <CounterOnlyNotice product={product} />
+      )}
 
       {/* --- Trust strip --- */}
       <ul className="grid grid-cols-1 gap-3 border-t border-border pt-5 sm:grid-cols-3">
         {[
           { Icon: ShieldCheck, label: "Checked before handover" },
-          { Icon: Truck, label: "City-wide delivery" },
+          // Delivery is an ONLINE-ORDER promise. With ordering off there
+          // is no way to request it from this site and nothing that
+          // records the address, so promising it here would be a claim
+          // the shop cannot act on.
+          ...(ONLINE_ORDERING_ENABLED
+            ? [{ Icon: Truck, label: "City-wide delivery" }]
+            : [{ Icon: Phone, label: "Call to reserve" }]),
           { Icon: Store, label: "Collect from the shop" },
         ].map(({ Icon, label }) => (
           <li key={label} className="flex items-center gap-2 text-xs text-muted-foreground">

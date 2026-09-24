@@ -5,6 +5,7 @@ import { ProductImage } from "@/components/shared/ProductImage";
 import { PriceDisplay } from "@/components/shared/PriceDisplay";
 import { AddToCartButton } from "@/components/products/AddToCartButton";
 import { WishlistButton } from "@/components/products/WishlistButton";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import { cn, discountPercent } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -80,11 +81,13 @@ export function ProductCard({ product, className }: ProductCardProps) {
 
       {/* OUTSIDE the Link, not inside it. A button nested in an anchor is
           invalid HTML, and clicking the heart would also navigate. */}
-      <WishlistButton
-        productId={product.id}
-        productName={product.name}
-        className="absolute right-2 top-2 z-10"
-      />
+      {ONLINE_ORDERING_ENABLED && (
+        <WishlistButton
+          productId={product.id}
+          productName={product.name}
+          className="absolute right-2 top-2 z-10"
+        />
+      )}
 
       {/* ---------------- DETAILS ---------------- */}
       <div className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
@@ -125,12 +128,24 @@ export function ProductCard({ product, className }: ProductCardProps) {
             roughly 160px wide, and two buttons in a row would each be too
             small to read or tap reliably. */}
         <div className="mt-2 flex flex-col gap-2">
-          <AddToCartButton product={product} />
+          {ONLINE_ORDERING_ENABLED && <AddToCartButton product={product} />}
 
           {/* asChild renders the Button styles onto the Link. Without it you
               get an anchor wrapping a button, which is invalid HTML and
-              breaks keyboard navigation. */}
-          <Button asChild variant="outline" className="h-9 w-full gap-1.5 font-medium">
+              breaks keyboard navigation.
+
+              With ordering off this is the card's only action, so it takes
+              the accent styling that Add to Cart had - a card whose single
+              button is a muted outline reads as disabled. */}
+          <Button
+            asChild
+            variant={ONLINE_ORDERING_ENABLED ? "outline" : "default"}
+            className={cn(
+              "h-9 w-full gap-1.5 font-medium",
+              !ONLINE_ORDERING_ENABLED &&
+                "bg-accent font-semibold text-accent-foreground hover:bg-gold-deep"
+            )}
+          >
             <Link href={href}>
               <Eye className="size-3.5" aria-hidden="true" />
               View Product

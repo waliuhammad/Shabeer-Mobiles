@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/firebase/session-cookie";
+import { ONLINE_ORDERING_ENABLED, DEFAULT_SIGNED_IN_ROUTE } from "@/lib/feature-flags";
 
 /**
  * proxy.ts - what Next.js 15 and earlier called middleware.ts.
@@ -53,7 +54,13 @@ export function proxy(request: NextRequest) {
   }
 
   // ---- customer account area ----
-  if (pathname.startsWith("/account")) {
+  //
+  // Skipped entirely when customer accounts are off. Without this guard
+  // the block below would bounce a visitor to /login to reach a page
+  // that no longer exists - asking them to sign in for nothing, and
+  // hiding the 404 that is the honest answer. Falling through lets the
+  // page itself return not-found.
+  if (ONLINE_ORDERING_ENABLED && pathname.startsWith("/account")) {
     if (!hasSession) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
@@ -66,7 +73,11 @@ export function proxy(request: NextRequest) {
   // ---- already signed in? skip the sign-in pages ----
   if (hasSession && AUTH_PAGES.includes(pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/account";
+    // NOT a hardcoded "/account": that page 404s while customer accounts
+    // are off, so signing in and then returning to /login would have
+    // bounced staff into a not-found page. The same constant the sign-in
+    // forms use, so both agree on where a session lands.
+    url.pathname = DEFAULT_SIGNED_IN_ROUTE;
     url.search = "";
     return NextResponse.redirect(url);
   }

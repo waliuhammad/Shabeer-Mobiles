@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { Container } from "@/components/shared/Container";
 import { Breadcrumb } from "@/components/shared/Breadcrumb";
@@ -42,11 +42,11 @@ export const metadata: Metadata = {
  * DISABLED - the shop does not sell online.
  *
  * The page is kept whole and still type-checks; it simply 404s while
- * ONLINE_STORE_ENABLED is false. Flip that flag in lib/feature-flags.ts
+ * ONLINE_ORDERING_ENABLED is false. Flip that flag in lib/feature-flags.ts
  * to bring it back.
  */
 export default async function TrackingPage({ searchParams }: PageProps<"/tracking">) {
-  if (!ONLINE_STORE_ENABLED) notFound();
+  if (!ONLINE_ORDERING_ENABLED) notFound();
   const params = await searchParams;
 
   // searchParams values can be string | string[] | undefined - a URL may

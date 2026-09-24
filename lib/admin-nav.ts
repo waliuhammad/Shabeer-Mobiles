@@ -1,4 +1,4 @@
-import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
+import { ONLINE_STORE_ENABLED, STAFF_DIRECTORY_ENABLED } from "@/lib/feature-flags";
 import {
   LayoutDashboard,
   Calculator,
@@ -127,7 +127,16 @@ export const adminNavSections: AdminNavSection[] = [
   {
     title: "System",
     items: [
-      { label: "Users / Staff", href: "/admin/users", icon: UserCog, roles: OWNER_ONLY },
+      /**
+       * The staff directory, when it is switched on. Spread rather than
+       * listed, so that with STAFF_DIRECTORY_ENABLED false the item is
+       * absent from this array entirely - which matters because the
+       * "Planned permissions" table and every nav lookup are built from
+       * it. A hidden-but-present entry would still show up there.
+       */
+      ...(STAFF_DIRECTORY_ENABLED
+        ? [{ label: "Users / Staff", href: "/admin/users", icon: UserCog, roles: OWNER_ONLY }]
+        : []),
       { label: "Settings", href: "/admin/settings", icon: Settings, roles: OWNER_ONLY },
     ],
   },
