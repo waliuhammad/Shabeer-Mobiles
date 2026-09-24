@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  ShieldAlert, Plus, Pencil, UserX, UserCheck, Check, X,
+  ShieldCheck, Plus, Pencil, UserX, UserCheck, Check, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,8 +13,13 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/shared/FormField";
-import { seedStaff, type StaffMember, type StaffStatus } from "@/data/staff";
+import type { StaffMember, StaffStatus } from "@/data/staff";
+import type { QueryDocumentSnapshot } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { writeDoc } from "@/lib/firebase/write";
 import { adminNavItems, type AdminRole } from "@/lib/admin-nav";
+import { useAuth } from "@/context/AuthContext";
 import { isValidEmail, isValidPakistaniPhone } from "@/lib/validation";
 import { formatOrderDate } from "@/lib/order-utils";
 import { cn } from "@/lib/utils";
@@ -49,6 +54,22 @@ interface Draft {
 
 const EMPTY: Draft = { name: "", email: "", phone: "", role: "CASHIER", note: "" };
 
+function mapStaff(doc: QueryDocumentSnapshot): StaffMember | null {
+  const d = doc.data();
+  if (typeof d.name !== "string" || typeof d.email !== "string") return null;
+  return {
+    id: doc.id,
+    name: d.name,
+    email: d.email,
+    phone: typeof d.phone === "string" ? d.phone : "",
+    role: (["SUPER_ADMIN", "MANAGER", "CASHIER"].includes(d.role) ? d.role : "CASHIER") as AdminRole,
+    status: d.status === "DISABLED" ? "DISABLED" : "ACTIVE",
+    note: typeof d.note === "string" ? d.note : "",
+    createdAt: typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
+    updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : new Date(0).toISOString(),
+  };
+}
+
 /**
  * /admin/users.
  *
@@ -61,7 +82,25 @@ const EMPTY: Draft = { name: "", email: "", phone: "", role: "CASHIER", note: ""
  * exist, because a false sense of security is worse than none.
  */
 export function UsersView() {
-  const [staff, setStaff] = useState<StaffMember[]>(seedStaff);
+  const { user } = useAuth();
+  /**
+   * The staff directory, from Firestore.
+   *
+   * This used to be React state seeded from a file, so anything added
+   * here vanished on reload - a form that silently discards what you
+   * type is worse than no form.
+   *
+   * NOTE WHAT THIS DOES AND DOES NOT DO: writing a row here records that
+   * someone works at the shop. It grants NOTHING. The role that actually
+   * matters lives in a signed token claim, set by scripts/set-role.mjs.
+   * If someone edited the role field in this collection it would change
+   * a label and nothing else - which is exactly the property we want.
+   */
+  const { items: staff, error: staffError } = useFirestoreCollection<StaffMember>(
+    COLLECTIONS.staff,
+    mapStaff,
+    { enabled: Boolean(user?.isStaff) }
+  );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -87,7 +126,7 @@ export function UsersView() {
     setEditing(member); setError(undefined); setOpen(true);
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!draft.name.trim()) return setError("Enter a name.");
@@ -102,20 +141,19 @@ export function UsersView() {
     if (clash) return setError("Another staff member already uses this email.");
 
     const stamp = new Date().toISOString();
-    if (editing) {
-      setStaff((cur) =>
-        cur.map((s) =>
-          s.id === editing.id
-            ? { ...s, ...draft, name: draft.name.trim(), email: draft.email.trim(), updatedAt: stamp }
-            : s
-        )
-      );
-      toast.success("Staff member updated.", { description: draft.name });
-    } else {
-      setStaff((cur) => [
-        ...cur,
-        {
-          id: `stf_${Math.random().toString(36).slice(2, 8)}`,
+    try {
+      if (editing) {
+        await writeDoc(COLLECTIONS.staff, editing.id, {
+          ...draft,
+          name: draft.name.trim(),
+          email: draft.email.trim(),
+          updatedAt: stamp,
+        });
+        toast.success("Staff member updated.", { description: draft.name });
+      } else {
+        const id = `stf_${Date.now().toString(36)}`;
+        await writeDoc(COLLECTIONS.staff, id, {
+          id,
           name: draft.name.trim(),
           email: draft.email.trim(),
           phone: draft.phone.trim(),
@@ -124,41 +162,61 @@ export function UsersView() {
           note: draft.note.trim(),
           createdAt: stamp,
           updatedAt: stamp,
-        },
-      ]);
-      toast.success("Staff member added.", {
-        description: "Recorded only - they cannot sign in until Auth exists.",
-      });
+        });
+        toast.success("Staff member added.", {
+          description: "Recorded. Grant the role with scripts/set-role.mjs.",
+        });
+      }
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save.");
     }
-    setOpen(false);
   }
 
-  function toggleStatus(member: StaffMember) {
+  async function toggleStatus(member: StaffMember) {
     const next: StaffStatus = member.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
-    setStaff((cur) =>
-      cur.map((s) => (s.id === member.id ? { ...s, status: next, updatedAt: new Date().toISOString() } : s))
-    );
-    toast.success(next === "DISABLED" ? "Staff member disabled." : "Staff member re-enabled.", {
-      description: "Kept on the list - past invoices carry their name.",
-    });
+    try {
+      // Disabled, never deleted - their name is on past invoices as the
+      // cashier, and removing the record would leave those unexplainable.
+      await writeDoc(COLLECTIONS.staff, member.id, {
+        status: next,
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success(next === "DISABLED" ? "Staff member disabled." : "Staff member re-enabled.", {
+        description: "Disabling here does NOT revoke access - use scripts/set-role.mjs none.",
+      });
+    } catch (err) {
+      toast.error("Could not save.", {
+        description: err instanceof Error ? err.message : "Unknown error.",
+      });
+    }
   }
 
   return (
     <>
       {/* The most important thing on this page. */}
-      <p className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs leading-relaxed text-foreground">
-        <ShieldAlert className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
+      <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">
+        <ShieldCheck className="mt-px size-4 shrink-0 text-success" aria-hidden="true" />
         <span>
-          <strong className="font-semibold">Roles are enforced, but not from this page.</strong>{" "}
-          Sign-in is real: admin pages verify a Firebase session on the server, and a
-          role lives in a signed custom claim that the browser cannot alter. Firestore
-          Security Rules read that claim, so a cashier physically cannot fetch a
-          purchase price whatever the interface shows. What this page is NOT is the
-          place roles are granted - that is done with scripts/set-role.mjs, because an
-          endpoint that can mint an owner is an endpoint worth attacking. The list
-          below is a record of who works here.
+          <strong className="font-semibold text-foreground">
+            Roles are enforced, but they are not granted here.
+          </strong>{" "}
+          A role lives in a signed token claim the browser cannot alter, and
+          Security Rules read it directly - so a cashier cannot fetch a purchase
+          price whatever this interface shows. Granting a role is done with{" "}
+          <code className="font-mono">scripts/set-role.mjs</code>, because an
+          endpoint that can mint an owner is an endpoint worth attacking. This
+          list is a record of who works here.
         </span>
       </p>
+
+      {/* A refused read is worth saying out loud - silence would look
+          like an empty staff list. */}
+      {staffError && (
+        <p role="alert" className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs font-medium text-destructive">
+          {staffError}
+        </p>
+      )}
 
       <div className="mt-4 flex justify-end">
         <Button onClick={openCreate} className="h-10 gap-1.5 bg-accent px-4 text-sm font-semibold text-accent-foreground hover:bg-gold-deep">
@@ -322,9 +380,10 @@ export function UsersView() {
       <p className="mt-4 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
         Staff are disabled, never deleted - their name appears on past invoices as the
         cashier, and removing the record would leave those invoices unexplainable.
-        Changes on this page are not saved anywhere; they last until you reload, because
-        a staff list that looks persistent would imply an account system that does not
-        exist yet. All names and addresses here are fictional demo values.
+        Adding someone here records that they work at the shop - it does not create
+        an account or grant any access. Do that with{" "}
+        <code className="font-mono">scripts/set-role.mjs</code>, and revoke it with{" "}
+        <code className="font-mono">none</code>.
       </p>
 
       {/* ---------------- ADD / EDIT ---------------- */}

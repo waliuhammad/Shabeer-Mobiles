@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Smartphone, Store } from "lucide-react";
+import { ONLINE_STORE_ENABLED } from "@/lib/feature-flags";
 import { AdminNavLinks } from "@/components/admin/AdminNavLinks";
 import { BUSINESS } from "@/lib/constants";
 
@@ -38,13 +39,16 @@ export function AdminSidebar() {
 
       {/* --- Footer --- */}
       <div className="shrink-0 border-t border-sidebar-border p-3">
-        <Link
+        {/* Only worth offering when there is a storefront to visit. With
+            the online shop off, "/" redirects straight back to /admin,
+            so the link would be a loop. */}
+        {ONLINE_STORE_ENABLED && <Link
           href="/"
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           <Store className="size-3.5 shrink-0" aria-hidden="true" />
           View {BUSINESS.name} store
-        </Link>
+        </Link>}
       </div>
     </aside>
   );
