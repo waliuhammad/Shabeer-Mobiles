@@ -22,21 +22,27 @@
 /**
  * Is the public online shop enabled?
  *
- * FALSE - Shabbir Mobiles does not sell online. This system is used in
- * the shop, by shop staff, to track stock, sales, customers and money.
+ * TRUE - the full storefront is live: shop and product pages, cart,
+ * checkout, wishlist, customer accounts and order tracking, with "/"
+ * showing the shop rather than the plain shop-window page.
  *
- * With this off:
- *   - the storefront routes (shop, product pages, cart, checkout,
- *     wishlist, customer account, order tracking) are not reachable
- *   - "/" goes to the admin panel instead of a shop window
+ * READ THIS BEFORE TAKING ORDERS THROUGH IT. The shop sells at the
+ * counter. With this on, a visitor can place an order that nobody has
+ * agreed to fulfil, so somebody has to watch Online Orders in the admin
+ * panel and answer them. If that is not happening, set this to false.
+ *
+ * With it OFF instead:
+ *   - the storefront routes are not reachable (they 404)
+ *   - "/" shows ShopWindow: address, hours and how to get in touch
  *   - Online Orders is hidden from the admin navigation
  *   - revenue comes from counter sales only; the ONLINE channel still
  *     exists in the finance layer and simply reports zero
  *
- * Setting it back to true restores all of the above. Nothing else needs
- * changing.
+ * Either way it is one boolean and nothing else needs changing. The
+ * shop-window page stays compiled and type-checked while it is off, so
+ * it still works whenever it is wanted again.
  */
-export const ONLINE_STORE_ENABLED = false;
+export const ONLINE_STORE_ENABLED = true;
 
 /**
  * Where a visitor should land.
