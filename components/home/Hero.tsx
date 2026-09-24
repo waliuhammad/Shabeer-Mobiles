@@ -19,7 +19,23 @@ const TRUST_POINTS = [
     : { Icon: Store, label: "Buy at the Counter" },
 ];
 
-export function Hero() {
+interface HeroProps {
+  /**
+   * How many units are actually on the shelf, summed from Firestore by
+   * the page above.
+   *
+   * IT USED TO SAY "500+", HARDCODED. The shop has eleven products and
+   * a couple of hundred units, and the Shop button sits directly under
+   * the claim - a customer can click it and count. A shop's own website
+   * is the worst possible place to be caught rounding up.
+   *
+   * Optional, so the storefront can render this component without a
+   * count; the tile is then left out rather than guessing.
+   */
+  unitsInStock?: number;
+}
+
+export function Hero({ unitsInStock }: HeroProps) {
   return (
     <section className="relative overflow-hidden bg-primary text-primary-foreground">
       {/* Decorative glows. aria-hidden so screen readers ignore them. */}
@@ -115,10 +131,14 @@ export function Hero() {
             className="relative mx-auto h-auto w-full drop-shadow-2xl"
           />
 
-          <div className="absolute -bottom-3 -left-1 rounded-xl bg-background p-3 shadow-xl sm:-left-3 sm:p-4">
-            <p className="font-heading text-xl font-bold text-primary sm:text-2xl">500+</p>
-            <p className="text-[11px] text-muted-foreground">Products in stock</p>
-          </div>
+          {typeof unitsInStock === "number" && unitsInStock > 0 && (
+            <div className="absolute -bottom-3 -left-1 rounded-xl bg-background p-3 shadow-xl sm:-left-3 sm:p-4">
+              <p className="font-heading text-xl font-bold text-primary sm:text-2xl">
+                {unitsInStock.toLocaleString("en-GB")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Items in stock</p>
+            </div>
+          )}
 
           <div className="absolute -right-1 -top-3 rounded-xl bg-accent p-3 shadow-xl sm:-right-3 sm:p-4">
             <p className="font-heading text-xl font-bold text-accent-foreground sm:text-2xl">

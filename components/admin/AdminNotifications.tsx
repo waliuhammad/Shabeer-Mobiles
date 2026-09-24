@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { Bell, PackageX, PackageMinus, Check, TriangleAlert } from "lucide-react";
+import { Bell, PackageX, PackageMinus, Check, TriangleAlert, Mail } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { where } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
 import { useCatalog } from "@/context/CatalogContext";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
 import { cn } from "@/lib/utils";
 
 /**
@@ -65,6 +69,23 @@ interface StockAlert {
 
 export function AdminNotifications() {
   const { products, loading, error } = useCatalog();
+  const { user } = useAuth();
+
+  /**
+   * Unanswered contact-form enquiries.
+   *
+   * This one DOES open its own subscription, unlike the stock alerts,
+   * because no admin context already holds messages. It is narrowed to
+   * status == "NEW" in the query rather than filtered afterwards, so a
+   * shop with years of archived enquiries still reads one small result
+   * set on every page of the panel.
+   */
+  const messageConstraints = useMemo(() => [where("status", "==", "NEW")], []);
+  const { items: newMessages } = useFirestoreCollection<{ id: string }>(
+    COLLECTIONS.messages,
+    (doc) => ({ id: doc.id }),
+    { enabled: Boolean(user?.isStaff), constraints: messageConstraints }
+  );
 
   const alerts = useMemo<StockAlert[]>(() => {
     const rows: StockAlert[] = [];
@@ -100,7 +121,8 @@ export function AdminNotifications() {
     });
   }, [products]);
 
-  const count = alerts.length;
+  const messageCount = newMessages.length;
+  const count = alerts.length + messageCount;
 
   return (
     <DropdownMenu>
@@ -177,12 +199,36 @@ export function AdminNotifications() {
         ) : count === 0 ? (
           <p className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground">
             <Check className="size-4 shrink-0 text-success" aria-hidden="true" />
-            Every product is above its stock threshold.
+            No unanswered messages, and every product is above its stock
+            threshold.
           </p>
         ) : (
           /* Capped height so a bad week does not produce a dropdown
              taller than the screen. */
           <ul className="max-h-80 overflow-y-auto py-1">
+            {/* Customers first. A person waiting for an answer outranks a
+                shelf that is merely getting low. */}
+            {messageCount > 0 && (
+              <li>
+                <Link
+                  href="/admin/messages"
+                  className="flex gap-2.5 px-3 py-2.5 transition-colors hover:bg-muted"
+                >
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-secondary/15 text-secondary">
+                    <Mail className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-foreground">
+                      {messageCount} unanswered{" "}
+                      {messageCount === 1 ? "enquiry" : "enquiries"}
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      From the website contact form
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            )}
             {alerts.map((a) => (
               <li key={a.id}>
                 <Link

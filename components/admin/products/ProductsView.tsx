@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Package, CheckCircle2, TriangleAlert, Warehouse,
@@ -34,7 +35,22 @@ export function ProductsView() {
   const { products, categories, getCost, setProductStatus } = useCatalog();
   const { getStock } = useInventory();
 
-  const [filters, setFilters] = useState<ProductFilterState>(EMPTY_PRODUCT_FILTERS);
+  /**
+   * Seeded from ?q= so the topbar search can actually land somewhere.
+   *
+   * That box used to be decoration - `onSubmit={e => e.preventDefault()}`
+   * with no handler - so typing in it and pressing Enter did nothing at
+   * all. It now navigates here with the term.
+   *
+   * Read once, as an initial value, not derived on every render: after
+   * arriving, this box belongs to the person typing in it, and rederiving
+   * from the URL would fight them on every keystroke.
+   */
+  const initialQuery = useSearchParams().get("q") ?? "";
+  const [filters, setFilters] = useState<ProductFilterState>({
+    ...EMPTY_PRODUCT_FILTERS,
+    query: initialQuery,
+  });
 
   const set = <K extends keyof ProductFilterState>(key: K, value: ProductFilterState[K]) =>
     setFilters((f) => ({ ...f, [key]: value }));

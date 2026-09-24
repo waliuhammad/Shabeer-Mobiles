@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Info, Store, Globe, TriangleAlert } from "lucide-react";
 import { PeriodFilter } from "@/components/admin/finance/PeriodFilter";
+import { useCatalog } from "@/context/CatalogContext";
 import { useOrders } from "@/context/OrdersContext";
 import { useInvoices } from "@/context/InvoicesContext";
 import { useExpenses } from "@/context/ExpensesContext";
@@ -36,6 +38,7 @@ import { SALES_CHANNEL_LABELS } from "@/types";
  * Security Rules - a hidden page is still a page anyone can type in.
  */
 export function ProfitLossView() {
+  const { products, getCost } = useCatalog();
   const { orders } = useOrders();
   const { invoices } = useInvoices();
   const { expenses } = useExpenses();
@@ -59,6 +62,24 @@ export function ProfitLossView() {
 
   const loss = f.netProfit < 0;
   const noData = f.saleCount === 0 && f.expenses === 0;
+
+  /**
+   * Products with no purchase cost recorded.
+   *
+   * THIS PAGE IS WRONG WHILE THIS IS NON-ZERO, and silently so. Cost of
+   * goods is stamped onto each sale line from productCosts at the moment
+   * of sale; a product with no cost row stamps 0. Every such sale then
+   * reports its full price as profit, and gross margin reads 100%.
+   *
+   * A finance screen that quietly overstates profit is worse than one
+   * that refuses to answer, because nobody goes looking for the bug -
+   * the numbers look excellent. So it says so, at the top, before any
+   * figure is read.
+   */
+  const productsWithoutCost = useMemo(
+    () => products.filter((p) => p.status !== "archived" && getCost(p.id) <= 0),
+    [products, getCost]
+  );
 
   if (!rangeOk) {
     return (
@@ -88,6 +109,27 @@ export function ProfitLossView() {
 
   return (
     <>
+      {productsWithoutCost.length > 0 && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 p-4">
+          <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden="true" />
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-foreground">
+              These figures overstate profit.
+            </p>
+            <p className="mt-1 leading-relaxed text-muted-foreground">
+              {productsWithoutCost.length} of {products.length} products have no
+              purchase cost recorded, so anything sold from them is counted as
+              pure profit and stock is valued at nothing. Set each one&apos;s
+              Purchase Cost under{" "}
+              <Link href="/admin/products" className="font-medium text-secondary hover:underline">
+                Products
+              </Link>
+              , then these numbers become real.
+            </p>
+          </div>
+        </div>
+      )}
+
       <PeriodPanel
         period={period}
         setPeriod={setPeriod}

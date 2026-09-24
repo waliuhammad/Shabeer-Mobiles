@@ -249,6 +249,27 @@ service cloud.firestore {
     }
 
     /**
+     * Enquiries from the public contact form.
+     *
+     * WRITE IS FLATLY DENIED, and that is not a mistake. These arrive
+     * through app/api/contact/route.ts, which uses the Admin SDK and so
+     * bypasses these rules entirely. Allowing unauthenticated creates
+     * here instead would open a collection in the shop's database to
+     * anyone on the internet, with no way to check the shape or size of
+     * what they send. One trusted server path is easier to reason about
+     * than a rule trying to validate a stranger's payload.
+     *
+     * Staff read them, and may update the status as they work through
+     * the list. Nothing is deletable: a customer's enquiry that somebody
+     * can quietly erase is a complaint nobody can prove was made.
+     */
+    match /messages/{messageId} {
+      allow read: if isStaff();
+      allow update: if isStaff();
+      allow create, delete: if false;
+    }
+
+    /**
      * Staff directory. Readable by staff so the admin can list
      * colleagues; writable only by the owner.
      *

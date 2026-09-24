@@ -31,4 +31,5 @@ export const COLLECTIONS = {
   inventoryTransactions: "inventoryTransactions",
   settings: "settings",
   staff: "staff",
+  messages: "messages",
 } as const;

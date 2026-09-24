@@ -1,4 +1,4 @@
-import { Star, Check, Package, Truck, ShieldCheck, Store, Phone } from "lucide-react";
+import { Check, Package, Truck, ShieldCheck, Store, Phone } from "lucide-react";
 import { PriceDisplay } from "@/components/shared/PriceDisplay";
 import { ProductActions } from "@/components/products/ProductActions";
 import { CounterOnlyNotice } from "@/components/products/CounterOnlyNotice";
@@ -20,11 +20,21 @@ export function ProductInfo({ product }: ProductInfoProps) {
   const outOfStock = product.stock <= 0;
   const lowStock = !outOfStock && product.stock <= product.lowStockThreshold;
 
-  // Placeholder ratings. Real reviews arrive with the Firestore `reviews`
-  // collection in a later phase; hardcoding the shape now means the layout
-  // is already correct when real numbers replace these.
-  const rating = 4.5;
-  const reviewCount = 24;
+  /**
+   * NO RATING IS SHOWN, because there is nothing to show.
+   *
+   * This block used to read `const rating = 4.5; const reviewCount = 24;`
+   * and render four and a half gold stars on EVERY product - the same
+   * score, the same count, on a shop that has never collected a single
+   * review. That is invented social proof on a real business's website:
+   * a customer reads it as other people's experience of this exact
+   * phone, and it is a number somebody typed.
+   *
+   * The Reviews tab already says reviews are coming, and explains that
+   * they will be writable only by a customer who actually bought the
+   * item. When that exists, the average belongs here - computed, not
+   * declared.
+   */
 
   return (
     <div className="flex flex-col gap-5">
@@ -45,23 +55,6 @@ export function ProductInfo({ product }: ProductInfoProps) {
           {product.name}
         </h1>
 
-        {/* --- Rating --- */}
-        <div className="mt-3 flex items-center gap-2">
-          <div className="flex items-center gap-0.5" aria-hidden="true">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Star
-                key={star}
-                className={
-                  star <= Math.round(rating)
-                    ? "size-4 fill-accent text-accent"
-                    : "size-4 text-border"
-                }
-              />
-            ))}
-          </div>
-          <span className="text-sm font-medium text-foreground">{rating}</span>
-          <span className="text-sm text-muted-foreground">({reviewCount} reviews)</span>
-        </div>
       </div>
 
       {/* --- Price --- */}

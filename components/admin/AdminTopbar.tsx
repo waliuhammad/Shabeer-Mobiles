@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ export function AdminTopbar() {
   const title = getAdminPageTitle(pathname);
 
   const router = useRouter();
+  const [search, setSearch] = useState("");
   const { user, signOut } = useAuth();
 
   // Real now: read from the signed Firebase token, not a hard-coded
@@ -73,14 +75,26 @@ export function AdminTopbar() {
         {title}
       </h1>
 
-      {/* Search: full width from md, an icon button below that. */}
+      {/*
+        Search: full width from md, hidden below that.
+
+        IT NOW GOES SOMEWHERE. This was `onSubmit={e => e.preventDefault()}`
+        with no handler and no state - typing a product name and pressing
+        Enter did nothing whatsoever. It searches PRODUCTS, and the
+        placeholder says so rather than promising orders and customers
+        that it never searched.
+      */}
       <form
         role="search"
         className="ml-auto hidden max-w-xs flex-1 md:block lg:max-w-sm"
-        onSubmit={(e) => e.preventDefault()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const term = search.trim();
+          router.push(term ? `/admin/products?q=${encodeURIComponent(term)}` : "/admin/products");
+        }}
       >
         <label htmlFor="admin-search" className="sr-only">
-          Search products, orders and customers
+          Search products
         </label>
         <div className="relative">
           <Search
@@ -90,7 +104,9 @@ export function AdminTopbar() {
           <input
             id="admin-search"
             type="search"
-            placeholder="Search products, orders..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products..."
             className="h-9 w-full rounded-lg border border-border bg-muted/60 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-secondary focus:bg-background focus:ring-2 focus:ring-ring/30"
           />
         </div>

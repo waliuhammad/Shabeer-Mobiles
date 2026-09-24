@@ -14,6 +14,7 @@ import {
   TrendingUp,
   ChartColumn,
   UserCog,
+  Mail,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -113,6 +114,13 @@ export const adminNavSections: AdminNavSection[] = [
     title: "Customers",
     items: [
       { label: "Customers", href: "/admin/customers", icon: UserRound, roles: ALL },
+      /**
+       * Contact-form enquiries. ALL roles, deliberately: a cashier
+       * standing at the counter is often the right person to answer
+       * "do you have this in stock", and these carry no cost prices or
+       * margins, which is the line the other restrictions draw.
+       */
+      { label: "Messages", href: "/admin/messages", icon: Mail, roles: ALL },
     ],
   },
   {

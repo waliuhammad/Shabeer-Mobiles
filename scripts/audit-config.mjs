@@ -57,6 +57,7 @@ const COLLECTIONS = [
   "orders",
   "expenses",
   "staff",
+  "messages",
   "settings",
   "counters",
 ];
@@ -88,6 +89,17 @@ console.log("\nPRODUCT FIELDS");
 console.log(`  products total            ${products.size}`);
 console.log(`  without an image          ${noImage}`);
 console.log(`  without a purchase cost   ${noCost}${noCost ? "   <- stock value reads 0, every sale looks 100% profit" : ""}`);
+
+const messages = await db.collection("messages").get();
+const unanswered = messages.docs.filter((d) => d.data().status === "NEW");
+
+console.log("\nCONTACT FORM");
+console.log(`  enquiries received        ${messages.size}`);
+console.log(`  unanswered                ${unanswered.length}`);
+for (const d of messages.docs.slice(0, 5)) {
+  const m = d.data();
+  console.log(`    ${String(m.status).padEnd(8)} ${m.name} | ${m.phone} | ${m.subject}`);
+}
 
 console.log("\nAUTH");
 console.log(`  staff documents           ${counts.staff}`);

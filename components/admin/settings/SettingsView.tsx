@@ -37,6 +37,7 @@ function SettingsForm() {
 
   const [data, setData] = useState<ShopSettings>(settings);
   const [errors, setErrors] = useState<SettingsErrors>({});
+  const [saving, setSaving] = useState(false);
 
   const set = <K extends keyof ShopSettings>(field: K, value: ShopSettings[K]) =>
     setData((d) => ({ ...d, [field]: value }));
@@ -61,7 +62,13 @@ function SettingsForm() {
     return found;
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  /**
+   * Saving reaches Firestore now, so it can fail - a cashier pressing
+   * this gets refused by Security Rules, and the old version would have
+   * told them it worked. Both handlers await the write and report what
+   * actually happened.
+   */
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const found = validate(data);
     if (Object.keys(found).length > 0) {
@@ -70,17 +77,35 @@ function SettingsForm() {
       return;
     }
     setErrors({});
-    saveSettings(data);
-    toast.success("Settings saved.", {
-      description: "Stored in this browser. Copy them into lib/constants.ts to make them live.",
-    });
+    setSaving(true);
+    try {
+      await saveSettings(data);
+      toast.success("Settings saved.", {
+        description: "Live everywhere - the shop PC and any other device.",
+      });
+    } catch {
+      toast.error("Could not save.", {
+        description: "Your role may not allow this change.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleReset() {
-    resetSettings();
-    setData(defaults);
-    setErrors({});
-    toast.success("Reset to the values in lib/constants.ts.");
+  async function handleReset() {
+    setSaving(true);
+    try {
+      await resetSettings();
+      setData(defaults);
+      setErrors({});
+      toast.success("Reset to the values in lib/constants.ts.");
+    } catch {
+      toast.error("Could not reset.", {
+        description: "Your role may not allow this change.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const setHour = (index: number, field: "days" | "time", value: string) =>
@@ -224,8 +249,9 @@ function SettingsForm() {
           className="h-10 gap-1.5 px-4 text-sm">
           <RotateCcw className="size-4" aria-hidden="true" />Reset to code defaults
         </Button>
-        <Button type="submit" className="h-10 gap-1.5 bg-accent px-6 text-sm font-semibold text-accent-foreground hover:bg-gold-deep">
-          <Save className="size-4" aria-hidden="true" />Save Settings
+        <Button type="submit" disabled={saving} className="h-10 gap-1.5 bg-accent px-6 text-sm font-semibold text-accent-foreground hover:bg-gold-deep">
+          <Save className="size-4" aria-hidden="true" />
+          {saving ? "Saving..." : "Save Settings"}
         </Button>
       </div>
     </form>

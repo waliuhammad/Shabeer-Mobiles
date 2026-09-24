@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Send } from "lucide-react";
+import { CheckCircle2, Send, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/shared/FormField";
 import { isValidEmail, isValidPakistaniPhone } from "@/lib/validation";
@@ -56,23 +56,31 @@ function validate(fields: ContactFields): ContactErrors {
 /**
  * The contact form.
  *
- * It does NOT send anything. There is no email service connected, and a
- * form that silently discards a customer's message would be worse than no
- * form - the customer would wait for a reply that never comes. So the
- * success state says plainly that nothing was sent, and points at the phone
- * number instead.
+ * IT NOW ACTUALLY SENDS. It used to validate the fields, call
+ * setSent(true) and stop - the enquiry went nowhere, while the customer
+ * read "your message has been received" and waited for a reply that
+ * could never come. Every enquiry typed into this form was lost.
  *
- * PHASE 2+:
- *     Contact Form -> Cloud Function -> Email Service -> shop inbox
- * The Cloud Function matters: an email API key can never live in the
- * browser, and a public endpoint needs rate limiting and spam protection
- * that only trusted server code can enforce.
+ * It POSTs to /api/contact, which validates again on the server and
+ * writes to Firestore. The shop reads them in /admin/messages.
+ *
+ * WHY NOT EMAIL: an email provider needs an account and an API key
+ * nobody has supplied, and the key could never live in the browser
+ * anyway. Storing the enquiry where the shop already looks is worth
+ * more than a delivery route that does not exist yet. If email is
+ * wanted later, the route handler is the one place to add it.
+ *
+ * A FAILED SEND NOW SAYS SO. The submit button reports the error and
+ * offers the phone number, instead of showing a success screen over a
+ * message that never arrived.
  */
 export function ContactForm() {
   const [fields, setFields] = useState<ContactFields>(EMPTY);
   const [errors, setErrors] = useState<ContactErrors>({});
   const [touched, setTouched] = useState<Set<keyof ContactFields>>(new Set());
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   function setField(name: keyof ContactFields, value: string) {
     const next = { ...fields, [name]: value };
@@ -86,7 +94,7 @@ export function ContactForm() {
     setErrors(visibleErrors(validate(fields), nextTouched));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const found = validate(fields);
@@ -96,7 +104,37 @@ export function ContactForm() {
       return;
     }
 
-    setSent(true);
+    setSending(true);
+    setSendError(null);
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fields.name.trim(),
+          phone: fields.phone.trim(),
+          email: fields.email.trim(),
+          subject: fields.subject.trim(),
+          message: fields.message.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        // The success screen is shown ONLY on a confirmed write. Showing
+        // it on a failure is what the old version effectively did, and
+        // it is the one outcome a contact form must never produce.
+        throw new Error(String(response.status));
+      }
+
+      setSent(true);
+    } catch {
+      setSendError(
+        "Your message could not be sent. Please call or WhatsApp the shop instead."
+      );
+    } finally {
+      setSending(false);
+    }
   }
 
   if (sent) {
@@ -109,9 +147,9 @@ export function ContactForm() {
           Thanks! Your message has been received.
         </p>
         <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-          <strong className="font-semibold">Development note:</strong> no email
-          was actually sent - the messaging service is connected in a later
-          phase. For anything urgent, please call or WhatsApp the shop directly.
+          The shop has it and will get back to you on the number you gave.
+          For anything urgent, please call or WhatsApp instead - that
+          reaches the counter straight away.
         </p>
         <Button
           type="button"
@@ -120,6 +158,7 @@ export function ContactForm() {
             setFields(EMPTY);
             setTouched(new Set());
             setErrors({});
+            setSendError(null);
             setSent(false);
           }}
           className="mt-1 h-10 px-4 text-sm font-medium"
@@ -202,12 +241,35 @@ export function ContactForm() {
         />
       </div>
 
+      {/* A failure has to be visible and has to offer a way through.
+          role="alert" so it is announced rather than silently appearing
+          above a button the customer is already pressing again. */}
+      {sendError && (
+        <p
+          role="alert"
+          className="mt-5 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs leading-relaxed text-foreground"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+          {sendError}
+        </p>
+      )}
+
       <Button
         type="submit"
+        disabled={sending}
         className="mt-5 h-11 w-full gap-2 bg-accent font-semibold text-accent-foreground hover:bg-gold-deep sm:w-auto sm:px-8"
       >
-        <Send className="size-4" aria-hidden="true" />
-        Send Message
+        {sending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            Sending...
+          </>
+        ) : (
+          <>
+            <Send className="size-4" aria-hidden="true" />
+            Send Message
+          </>
+        )}
       </Button>
     </form>
   );

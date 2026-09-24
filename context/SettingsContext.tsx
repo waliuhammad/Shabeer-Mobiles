@@ -1,13 +1,15 @@
 "use client";
 
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState,
+  createContext, useCallback, useContext, useMemo,
 } from "react";
 import { BUSINESS } from "@/lib/constants";
+import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
+import { writeDoc, removeDoc } from "@/lib/firebase/write";
+import { COLLECTIONS } from "@/lib/firebase/firestore";
 import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import type { ShopSettings } from "@/types";
 
-const STORAGE_KEY = "shabbir-mobiles:settings:v1";
 
 /**
  * The settings store.
@@ -60,8 +62,8 @@ interface SettingsContextValue {
   settings: ShopSettings;
   /** Defaults straight from lib/constants.ts, for the Reset button. */
   defaults: ShopSettings;
-  saveSettings: (next: ShopSettings) => void;
-  resetSettings: () => void;
+  saveSettings: (next: ShopSettings) => Promise<void>;
+  resetSettings: () => Promise<void>;
   /** Is this field still the shipped placeholder? */
   isPlaceholder: (field: keyof ShopSettings) => boolean;
   /** How many fields still need real values. */
@@ -72,41 +74,69 @@ interface SettingsContextValue {
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-function readStored(): ShopSettings | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    // Merged over the defaults so a settings object saved before a new
-    // field existed does not leave that field undefined.
-    return { ...DEFAULTS, ...(parsed as Partial<ShopSettings>) };
-  } catch {
-    return null;
-  }
-}
+/** The shape read back from Firestore: the fields plus the doc id. */
+type StoredSettings = Partial<ShopSettings> & { id: string };
+
+/**
+ * THE shop settings document. One row, fixed id.
+ *
+ * A collection would imply there could be several sets of shop details,
+ * which there cannot - there is one shop.
+ */
+const SETTINGS_DOC_ID = "shop";
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [local, setLocal] = useState<ShopSettings | null>(readStored);
   const isHydrated = useIsHydrated();
 
-  useEffect(() => {
-    try {
-      if (local) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
-      else window.localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Storage blocked or full - still works for this session.
-    }
-  }, [local]);
-
-  const settings = useMemo(
-    () => (isHydrated && local ? local : DEFAULTS),
-    [local, isHydrated]
+  /**
+   * NOW IN FIRESTORE, not localStorage.
+   *
+   * localStorage is one browser's private scratchpad. The owner changed
+   * the shop phone number on their laptop and the counter PC kept
+   * printing the old one on every invoice, with nothing on either screen
+   * to suggest they disagreed. Clearing site data lost the lot.
+   *
+   * This was the last context still on it - everything else moved when
+   * the app moved to Firestore, and this one was missed.
+   *
+   * The subscription is live, so a change made on the laptop reaches the
+   * counter without a refresh, and firestore.rules already restricts
+   * writes to the owner while letting anyone read (the public footer
+   * needs the address and hours).
+   */
+  const { items } = useFirestoreCollection<StoredSettings>(
+    COLLECTIONS.settings,
+    (doc) => ({ id: doc.id, ...(doc.data() as Partial<ShopSettings>) })
   );
 
-  const saveSettings = useCallback((next: ShopSettings) => setLocal(next), []);
-  const resetSettings = useCallback(() => setLocal(null), []);
+  const stored = useMemo(
+    () => items.find((row) => row.id === SETTINGS_DOC_ID) ?? null,
+    [items]
+  );
+
+  const settings = useMemo(() => {
+    if (!isHydrated || !stored) return DEFAULTS;
+    // Merged over the defaults so a document saved before a new field
+    // existed does not leave that field undefined.
+    // The doc id is not a settings field; strip it before merging.
+    const { id, ...fields } = stored;
+    void id;
+    return { ...DEFAULTS, ...fields } as ShopSettings;
+  }, [stored, isHydrated]);
+
+  const saveSettings = useCallback(async (next: ShopSettings) => {
+    await writeDoc(COLLECTIONS.settings, SETTINGS_DOC_ID, { ...next });
+  }, []);
+
+  /**
+   * Reset deletes the document, so `settings` falls back to DEFAULTS -
+   * the values in lib/constants.ts. Writing the defaults in instead
+   * would look identical on screen but would lose the distinction
+   * between "never configured" and "configured to match the defaults".
+   */
+  const resetSettings = useCallback(async () => {
+    await removeDoc(COLLECTIONS.settings, SETTINGS_DOC_ID);
+  }, []);
 
   const isPlaceholder = useCallback(
     (field: keyof ShopSettings) => {
@@ -132,10 +162,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       resetSettings,
       isPlaceholder,
       placeholderCount,
-      hasLocalChanges: isHydrated && local !== null,
+      hasLocalChanges: isHydrated && stored !== null,
       isHydrated,
     }),
-    [settings, saveSettings, resetSettings, isPlaceholder, placeholderCount, local, isHydrated]
+    [settings, saveSettings, resetSettings, isPlaceholder, placeholderCount, stored, isHydrated]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

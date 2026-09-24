@@ -329,6 +329,23 @@ try {
   console.log("5. dropdown lists:");
   for (const row of JSON.parse(listed)) console.log("     -", row);
 
+  /* ---- 6. the inbox lists contact-form enquiries ---- */
+  await send("Page.navigate", { url: `${BASE}/admin/messages` });
+  const subjects = await waitFor(
+    send,
+    `(() => {
+      const rows = [...document.querySelectorAll('li')]
+        .filter((li) => li.querySelector('a[href^="tel:"]'));
+      return rows.length
+        ? JSON.stringify(rows.map((li) => li.querySelector('p')?.textContent.trim()))
+        : null;
+    })()`,
+    20000,
+    "the messages list"
+  );
+  console.log("6. /admin/messages lists:");
+  for (const row of JSON.parse(subjects)) console.log("     -", row);
+
   console.log("\nPASS - the bell is driven by live Firestore data.");
 } catch (err) {
   failed = true;
