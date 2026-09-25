@@ -176,6 +176,15 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         categoryName: category?.name ?? base.categoryName,
         description: data.description.trim(),
         features: data.features.split("\n").map((f) => f.trim()).filter(Boolean),
+        /**
+         * The gallery, in the order the form left it.
+         *
+         * Blank entries are dropped rather than stored: an empty string
+         * reaches next/image as a src and renders a broken image, where
+         * an absent entry correctly falls through to the placeholder
+         * tile in ProductImage.
+         */
+        images: data.images.filter((url) => typeof url === "string" && url.trim() !== ""),
         price: Math.round(Number(data.price)),
         originalPrice: data.originalPrice.trim()
           ? Math.round(Number(data.originalPrice))

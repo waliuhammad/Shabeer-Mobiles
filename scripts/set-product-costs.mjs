@@ -145,9 +145,20 @@ if (!WRITE) {
 const now = new Date().toISOString();
 const batch = db.batch();
 for (const r of plan) {
+  /**
+   * The field is `cost`, and it has to be.
+   *
+   * This script first wrote `purchasePrice`, which is the name the field
+   * carries once it is stamped onto a SALE LINE - but not the name it
+   * has in productCosts. Everything that reads this document looks for
+   * `cost`: mapCost() in CatalogContext and the transaction in
+   * app/api/sales/route.ts. Writing the wrong key would have stored the
+   * numbers perfectly and had every one of them ignored, while the
+   * document's existence made it look configured.
+   */
   batch.set(
     db.collection("productCosts").doc(r.id),
-    { productId: r.id, purchasePrice: r.cost, updatedAt: now },
+    { cost: r.cost, updatedAt: now },
     { merge: true }
   );
 }

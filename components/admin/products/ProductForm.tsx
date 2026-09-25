@@ -10,6 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { FormField } from "@/components/shared/FormField";
+import { ProductImageUploader } from "@/components/admin/products/ProductImageUploader";
 import { useCatalog } from "@/context/CatalogContext";
 import { useInventory } from "@/context/InventoryContext";
 import {
@@ -55,6 +56,7 @@ export function ProductForm({ product }: ProductFormProps) {
           price: String(product.price),
           originalPrice: product.originalPrice ? String(product.originalPrice) : "",
           purchasePrice: getCost(product.id) ? String(getCost(product.id)) : "",
+          images: product.images,
           lowStockThreshold: String(product.lowStockThreshold),
           condition: product.condition,
           status: product.status,
@@ -66,6 +68,7 @@ export function ProductForm({ product }: ProductFormProps) {
           categoryId: categories[0]?.id ?? "",
           description: "", features: "",
           price: "", originalPrice: "", purchasePrice: "",
+          images: [],
           lowStockThreshold: "5",
           condition: "new",
           // New products start as drafts: nothing reaches customers until
@@ -185,6 +188,22 @@ export function ProductForm({ product }: ProductFormProps) {
             onChange={(v) => set("features", v)}
             placeholder={"64GB storage\nBattery health 89%\n30-day checking warranty"}
             textarea rows={4} className="sm:col-span-2"
+          />
+        </div>
+      </section>
+
+      {/* ---------------- PHOTOS ---------------- */}
+      <section className="mt-4 rounded-xl border border-border bg-card p-4 sm:p-6">
+        <h3 className="text-sm font-semibold text-foreground">Photos</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          A product with no photo shows a branded placeholder tile on the
+          website. Real photographs of the actual item matter most for used
+          handsets, where condition is the thing a buyer wants to see.
+        </p>
+        <div className="mt-3">
+          <ProductImageUploader
+            value={data.images}
+            onChange={(next) => setData((d) => ({ ...d, images: next }))}
           />
         </div>
       </section>

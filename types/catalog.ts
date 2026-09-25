@@ -34,6 +34,14 @@ export interface ProductFormData {
   originalPrice: string;
   /** Admin-only. Written to the cost store, never onto Product. */
   purchasePrice: string;
+  /**
+   * Cloudinary URLs, in display order. images[0] is the one product
+   * cards, the POS tile and the storefront gallery show first.
+   *
+   * A string[] rather than a newline-joined string like `features`,
+   * because these are not typed by hand - the uploader produces them.
+   */
+  images: string[];
   lowStockThreshold: string;
   condition: ProductCondition;
   status: ProductStatus;
