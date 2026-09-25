@@ -1,4 +1,4 @@
-import { ONLINE_STORE_ENABLED, STAFF_DIRECTORY_ENABLED } from "@/lib/feature-flags";
+import { ONLINE_ORDERING_ENABLED, STAFF_DIRECTORY_ENABLED } from "@/lib/feature-flags";
 import {
   LayoutDashboard,
   Calculator,
@@ -82,14 +82,19 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { label: "POS / Billing", href: "/admin/billing", icon: Calculator, roles: ALL },
       /**
-       * Online Orders - hidden while the shop does not sell online.
+       * Online Orders - gated on ORDERING, not on the storefront.
+       *
+       * It used to follow ONLINE_STORE_ENABLED, which produced a menu
+       * item for something that cannot happen: the public catalogue is
+       * live, so the flag was true, but customers cannot place an order,
+       * so the list was permanently empty and the detail page behind it
+       * still read demo fixtures.
        *
        * The route, the data and the finance integration all still exist
-       * and still compile; there is simply nothing to look at, so the
-       * link is not offered. Turning ONLINE_STORE_ENABLED back on brings
-       * it straight back.
+       * and still compile. Turning ordering back on brings the link
+       * straight back.
        */
-      ...(ONLINE_STORE_ENABLED
+      ...(ONLINE_ORDERING_ENABLED
         ? [{ label: "Online Orders", href: "/admin/orders", icon: ShoppingBag, roles: OWNER_MANAGER }]
         : []),
     ],

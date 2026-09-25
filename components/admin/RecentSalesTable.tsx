@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Receipt, ArrowRight, Store, Globe } from "lucide-react";
 import { formatPrice, cn } from "@/lib/utils";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import { useMemo } from "react";
 import { useOrders } from "@/context/OrdersContext";
 import { useInvoices } from "@/context/InvoicesContext";
@@ -72,8 +73,17 @@ export function RecentSalesTable() {
           <Receipt className="size-4 text-secondary" aria-hidden="true" />
           Recent Sales
         </h2>
+        {/*
+          Where "View all" goes depends on what sales exist.
+
+          It used to always point at /admin/orders, which now 404s: with
+          online ordering off there are no online orders, so that page is
+          gone. Every sale is a counter sale, and Revenue is where those
+          are listed - so the link follows the data rather than pointing
+          at a page that used to be the answer.
+        */}
         <Link
-          href="/admin/orders"
+          href={ONLINE_ORDERING_ENABLED ? "/admin/orders" : "/admin/revenue"}
           className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-secondary transition-colors hover:text-primary"
         >
           View all

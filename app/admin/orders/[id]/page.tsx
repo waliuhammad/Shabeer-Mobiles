@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import { OrderDetailView } from "@/components/admin/orders/OrderDetailView";
 import { getDemoOrder } from "@/data/orders";
 
@@ -25,6 +26,10 @@ export async function generateMetadata({
 export default async function AdminOrderDetailPage({
   params,
 }: PageProps<"/admin/orders/[id]">) {
+  // See the list page: the route stays reachable by URL otherwise, and
+  // what it renders comes from data/orders.ts, not Firestore.
+  if (!ONLINE_ORDERING_ENABLED) notFound();
+
   const { id } = await params;
   const order = getDemoOrder(id);
 
