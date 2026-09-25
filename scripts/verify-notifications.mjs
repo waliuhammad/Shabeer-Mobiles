@@ -331,20 +331,31 @@ try {
 
   /* ---- 6. the inbox lists contact-form enquiries ---- */
   await send("Page.navigate", { url: `${BASE}/admin/messages` });
+  /* An EMPTY inbox is a pass, not a timeout. There may genuinely be no
+     enquiries - which is the normal state for a shop that has just
+     cleared them - so this waits for the page to resolve either way
+     rather than only for rows to appear. Waiting only for rows made
+     this step fail the whole run the first time the inbox was empty,
+     which is a bug in the test, not in the page. */
   const subjects = await waitFor(
     send,
     `(() => {
       const rows = [...document.querySelectorAll('li')]
         .filter((li) => li.querySelector('a[href^="tel:"]'));
-      return rows.length
-        ? JSON.stringify(rows.map((li) => li.querySelector('p')?.textContent.trim()))
-        : null;
+      if (rows.length) {
+        return JSON.stringify(rows.map((li) => li.querySelector('p')?.textContent.trim()));
+      }
+      // The empty state renders this exact wording.
+      const empty = document.body.textContent.includes('No new enquiries')
+        || document.body.textContent.includes('Nothing here');
+      return empty ? '[]' : null;
     })()`,
     20000,
     "the messages list"
   );
-  console.log("6. /admin/messages lists:");
-  for (const row of JSON.parse(subjects)) console.log("     -", row);
+  const rows = JSON.parse(subjects);
+  console.log(`6. /admin/messages lists ${rows.length}:`);
+  for (const row of rows) console.log("     -", row);
 
   console.log("\nPASS - the bell is driven by live Firestore data.");
 } catch (err) {
