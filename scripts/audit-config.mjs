@@ -90,6 +90,12 @@ console.log(`  products total            ${products.size}`);
 console.log(`  without an image          ${noImage}`);
 console.log(`  without a purchase cost   ${noCost}${noCost ? "   <- stock value reads 0, every sale looks 100% profit" : ""}`);
 
+const costDocs = await db.collection("productCosts").limit(3).get();
+console.log("\nCOST DOCUMENTS (first 3, raw)");
+for (const d of costDocs.docs) {
+  console.log(`  ${d.id}  ${JSON.stringify(d.data())}`);
+}
+
 const messages = await db.collection("messages").get();
 const unanswered = messages.docs.filter((d) => d.data().status === "NEW");
 

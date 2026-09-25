@@ -38,7 +38,7 @@ import { SALES_CHANNEL_LABELS } from "@/types";
  * Security Rules - a hidden page is still a page anyone can type in.
  */
 export function ProfitLossView() {
-  const { products, getCost } = useCatalog();
+  const { products, getCost, isCostEstimated } = useCatalog();
   const { orders } = useOrders();
   const { invoices } = useInvoices();
   const { expenses } = useExpenses();
@@ -79,6 +79,21 @@ export function ProfitLossView() {
   const productsWithoutCost = useMemo(
     () => products.filter((p) => p.status !== "archived" && getCost(p.id) <= 0),
     [products, getCost]
+  );
+
+  /**
+   * Products whose cost was ESTIMATED rather than supplied by the shop.
+   *
+   * A missing cost and a guessed cost are different problems and need
+   * different wording. A missing one makes the figures plainly wrong -
+   * 100% margin on everything. A guessed one makes them plausible, which
+   * is more dangerous: nobody double-checks a number that looks right.
+   * So the page says which it is rather than falling silent the moment a
+   * value exists.
+   */
+  const productsWithEstimatedCost = useMemo(
+    () => products.filter((p) => p.status !== "archived" && isCostEstimated(p.id)),
+    [products, isCostEstimated]
   );
 
   if (!rangeOk) {
@@ -125,6 +140,28 @@ export function ProfitLossView() {
                 Products
               </Link>
               , then these numbers become real.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {productsWithoutCost.length === 0 && productsWithEstimatedCost.length > 0 && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-secondary/40 bg-secondary/5 p-4">
+          <Info className="mt-0.5 size-5 shrink-0 text-secondary" aria-hidden="true" />
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-foreground">
+              Based on estimated purchase costs.
+            </p>
+            <p className="mt-1 leading-relaxed text-muted-foreground">
+              {productsWithEstimatedCost.length} of {products.length} products use
+              an estimated cost, worked out from the selling price and a typical
+              margin - not from what the shop actually paid. The shape of these
+              figures is right; the exact rupees are not. Replace each one under{" "}
+              <Link href="/admin/products" className="font-medium text-secondary hover:underline">
+                Products
+              </Link>{" "}
+              as the real invoice prices come to hand, and the label disappears
+              on its own.
             </p>
           </div>
         </div>

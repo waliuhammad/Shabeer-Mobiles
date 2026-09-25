@@ -41,6 +41,8 @@ interface CatalogContextValue {
   getCategory: (id: string) => Category | undefined;
   /** Admin-only. 0 when unknown or not readable by this role. */
   getCost: (productId: string) => number;
+  /** Was that cost estimated rather than supplied by the shop? */
+  isCostEstimated: (productId: string) => boolean;
 
   createProduct: (data: ProductFormData) => Promise<Product>;
   updateProduct: (id: string, data: ProductFormData) => Promise<Product | undefined>;
@@ -103,12 +105,23 @@ function mapCategory(doc: QueryDocumentSnapshot): Category | null {
 interface CostRow {
   productId: string;
   cost: number;
+  /**
+   * True when nobody at the shop supplied this figure - it was
+   * estimated from the selling price and a typical margin for the
+   * category.
+   *
+   * It exists so an estimate can never be mistaken for a real number
+   * once it is in the database. Without it the two are identical, and
+   * every margin, stock valuation and P&L built on top would look
+   * exactly as authoritative as one built on real invoices.
+   */
+  isEstimate: boolean;
 }
 
 function mapCost(doc: QueryDocumentSnapshot): CostRow | null {
   const d = doc.data();
   if (typeof d.cost !== "number") return null;
-  return { productId: doc.id, cost: d.cost };
+  return { productId: doc.id, cost: d.cost, isEstimate: d.isEstimate === true };
 }
 
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
@@ -136,6 +149,15 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     return map;
   }, [costsState.items]);
 
+  /** Which products carry an ESTIMATED cost rather than a supplied one. */
+  const estimatedCostIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of costsState.items) {
+      if (row.isEstimate) ids.add(row.productId);
+    }
+    return ids;
+  }, [costsState.items]);
+
   const products = productsState.items;
   const categories = categoriesState.items;
 
@@ -153,6 +175,18 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     [categories]
   );
   const getCost = useCallback((productId: string) => costMap.get(productId) ?? 0, [costMap]);
+
+  /**
+   * True when this product's cost was estimated rather than supplied.
+   *
+   * Every screen that shows a margin, a stock value or a profit figure
+   * can ask this and say so, instead of presenting a guess with the same
+   * confidence as a real invoice.
+   */
+  const isCostEstimated = useCallback(
+    (productId: string) => estimatedCostIds.has(productId),
+    [estimatedCostIds]
+  );
 
   /**
    * Builds the product document from the form.
@@ -206,6 +240,15 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     if (!Number.isFinite(value) || value < 0) return;
     await writeDoc(COLLECTIONS.productCosts, productId, {
       cost: value,
+      /**
+       * FALSE, always, from this path.
+       *
+       * A number typed into the admin form is one the shop supplied, so
+       * it clears any estimate that was sitting there. Leaving the flag
+       * alone would keep labelling a real invoice price as a guess, and
+       * the label would never go away no matter how much work was done.
+       */
+      isEstimate: false,
       updatedAt: new Date().toISOString(),
     });
   }, []);
@@ -304,14 +347,14 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       products, activeProducts, categories,
-      getProduct, getCategory, getCost,
+      getProduct, getCategory, getCost, isCostEstimated,
       createProduct, updateProduct, setProductStatus,
       createCategory, updateCategory, removeCategory,
       loading, error,
       isHydrated: !loading,
     }),
     [
-      products, activeProducts, categories, getProduct, getCategory, getCost,
+      products, activeProducts, categories, getProduct, getCategory, getCost, isCostEstimated,
       createProduct, updateProduct, setProductStatus, createCategory,
       updateCategory, removeCategory, loading, error,
     ]

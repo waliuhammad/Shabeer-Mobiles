@@ -39,7 +39,7 @@ interface ProductFormProps {
  */
 export function ProductForm({ product }: ProductFormProps) {
   const router = useRouter();
-  const { products, categories, getCost, createProduct, updateProduct } = useCatalog();
+  const { products, categories, getCost, isCostEstimated, createProduct, updateProduct } = useCatalog();
   const { getStock } = useInventory();
   const isEdit = Boolean(product);
 
@@ -78,6 +78,9 @@ export function ProductForm({ product }: ProductFormProps) {
         }
   );
   const [errors, setErrors] = useState<ProductErrors>({});
+
+  /** Only meaningful when editing - a new product has no cost row yet. */
+  const costIsEstimate = Boolean(product && isCostEstimated(product.id));
   const [slugTouched, setSlugTouched] = useState(isEdit);
   const [saving, setSaving] = useState(false);
 
@@ -222,11 +225,23 @@ export function ProductForm({ product }: ProductFormProps) {
             onChange={(v) => set("originalPrice", v)} error={errors.originalPrice}
             placeholder="Leave blank if not on sale"
           />
-          <FormField
-            label="Purchase Cost (Rs)" type="number" value={data.purchasePrice}
-            onChange={(v) => set("purchasePrice", v)} error={errors.purchasePrice}
-            placeholder="23800"
-          />
+          <div>
+            <FormField
+              label="Purchase Cost (Rs)" type="number" value={data.purchasePrice}
+              onChange={(v) => set("purchasePrice", v)} error={errors.purchasePrice}
+              placeholder="23800"
+            />
+            {/* Shown only where the figure did NOT come from the shop, so
+                the one person who can correct it sees that it needs
+                correcting, at the exact field that fixes it. Saving any
+                value here clears the flag. */}
+            {costIsEstimate && (
+              <p className="mt-1.5 text-[11px] leading-relaxed text-secondary">
+                This is an estimate, not what the shop paid. Replacing it makes
+                every margin and profit figure for this product real.
+              </p>
+            )}
+          </div>
         </div>
 
         {margin !== null && (

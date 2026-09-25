@@ -40,18 +40,41 @@ const WRITE = process.argv.includes("--write");
  * empty collection this is meant to fix.
  */
 const COSTS = {
-  "p-001": null, // iPhone 12 (Used)              sells 28,999
-  "p-002": null, // iPhone 11 (Used)              sells 22,999
-  "p-003": null, // Samsung Galaxy A52 (Used)     sells 18,999
-  "p-004": null, // Samsung Original Charger 25W  sells  1,499
-  "p-005": null, // Fast Charger 33W              sells    899
-  "p-006": null, // Silicone Phone Cover          sells    999
-  "p-007": null, // Tempered Glass Protector      sells    349
-  "p-008": null, // AirPods Pro (2nd Gen)         sells  8,999
-  "p-009": null, // Power Bank 20,000 mAh         sells  4,299
-  "p-010": null, // Wired Handsfree               sells    599
-  "p-011": null, // Type-C Fast Charging Cable    sells    449
+  // --- USED HANDSETS: thin margins. A used phone is bought from a
+  //     walk-in or a dealer at close to what it resells for, and the
+  //     shop's money is made on volume and on the accessories that go
+  //     out with it, not on the handset.
+  "p-001": 25800, // iPhone 12 (Used)              sells 28,999  -> 11%
+  "p-002": 20400, // iPhone 11 (Used)              sells 22,999  -> 11%
+  "p-003": 16600, // Samsung Galaxy A52 (Used)     sells 18,999  -> 13%
+
+  // --- GENUINE BRANDED ACCESSORY: distributor-controlled, so the
+  //     margin is set by the supplier, not the shop.
+  "p-004": 1150,  // Samsung Original Charger 25W  sells  1,499  -> 23%
+
+  // --- UNBRANDED / LOCAL ACCESSORIES: bought by the box, high margin,
+  //     which is where a counter of this size actually earns.
+  "p-005": 560,   // Fast Charger 33W              sells    899  -> 38%
+  "p-006": 420,   // Silicone Phone Cover          sells    999  -> 58%
+  "p-007": 120,   // Tempered Glass Protector      sells    349  -> 66%
+  "p-010": 300,   // Wired Handsfree               sells    599  -> 50%
+  "p-011": 200,   // Type-C Charging Cable         sells    449  -> 55%
+
+  // --- HIGHER-VALUE ITEMS: more capital tied up per unit, so the
+  //     percentage is lower even though the rupee margin is larger.
+  "p-008": 6900,  // AirPods Pro (2nd Gen)         sells  8,999  -> 23%
+  "p-009": 3300,  // Power Bank 20,000 mAh         sells  4,299  -> 23%
 };
+
+/**
+ * Mark everything written by this run as an ESTIMATE.
+ *
+ * Set to false only when the numbers above are what the shop actually
+ * paid. The flag travels into Firestore and the admin panel reads it, so
+ * a margin built on a guess is labelled as one everywhere it appears
+ * rather than sitting next to real figures looking equally solid.
+ */
+const IS_ESTIMATE = true;
 
 function loadEnv() {
   const text = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
@@ -158,7 +181,7 @@ for (const r of plan) {
    */
   batch.set(
     db.collection("productCosts").doc(r.id),
-    { cost: r.cost, updatedAt: now },
+    { cost: r.cost, isEstimate: IS_ESTIMATE, updatedAt: now },
     { merge: true }
   );
 }
