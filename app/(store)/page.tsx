@@ -8,11 +8,7 @@ import { Hero } from "@/components/home/Hero";
 import { CategoryGrid } from "@/components/home/CategoryGrid";
 import { VisitShop } from "@/components/home/VisitShop";
 import { ServicesSection } from "@/components/home/ServicesSection";
-import {
-  getFeaturedProducts,
-  getBestSellers,
-  getActiveProducts,
-} from "@/services/catalog.service";
+import { getFeaturedProducts, getBestSellers } from "@/services/catalog.service";
 
 /**
  * Rebuild this page at most once a minute, in the background.
@@ -79,24 +75,15 @@ export default async function HomePage() {
 
   // Run together rather than one after the other. Both hit the same
   // cached getActiveProducts() underneath, so this is one read, not two.
-  const [featured, bestSellers, active] = await Promise.all([
+  const [featured, bestSellers] = await Promise.all([
     getFeaturedProducts(4),
     getBestSellers(4),
-    getActiveProducts(),
   ]);
 
-  /**
-   * Real units on the shelf, for the hero's stock tile - which used to
-   * assert "500+" regardless.
-   *
-   * All three of these resolve through the same cache()-wrapped
-   * getActiveProducts(), so adding it costs no extra Firestore read.
-   */
-  const unitsInStock = active.reduce((sum, p) => sum + Math.max(0, p.stock), 0);
 
   return (
     <>
-      <Hero unitsInStock={unitsInStock} />
+      <Hero />
 
       <CategoryGrid />
 

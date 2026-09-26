@@ -4,7 +4,6 @@ import { ArrowRight, MapPin, ShieldCheck, Wrench, Truck, Store } from "lucide-re
 import { Container } from "@/components/shared/Container";
 import { Button } from "@/components/ui/button";
 import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
-import { LiveStockCount } from "@/components/home/LiveStockCount";
 
 /**
  * Delivery is something an ONLINE ORDER gets. With ordering off, the
@@ -20,23 +19,7 @@ const TRUST_POINTS = [
     : { Icon: Store, label: "Buy at the Counter" },
 ];
 
-interface HeroProps {
-  /**
-   * How many units are actually on the shelf, summed from Firestore by
-   * the page above.
-   *
-   * IT USED TO SAY "500+", HARDCODED. The shop has eleven products and
-   * a couple of hundred units, and the Shop button sits directly under
-   * the claim - a customer can click it and count. A shop's own website
-   * is the worst possible place to be caught rounding up.
-   *
-   * Optional, so the storefront can render this component without a
-   * count; the tile is then left out rather than guessing.
-   */
-  unitsInStock?: number;
-}
-
-export function Hero({ unitsInStock }: HeroProps) {
+export function Hero() {
   return (
     <section className="relative overflow-hidden bg-primary text-primary-foreground">
       {/* Decorative glows. aria-hidden so screen readers ignore them. */}
@@ -146,19 +129,6 @@ export function Hero({ unitsInStock }: HeroProps) {
             className="relative mx-auto h-auto w-full drop-shadow-2xl"
           />
 
-          {/*
-            Server-rendered first, then kept live.
-
-            Hero receives the count from the page, which reads Firestore
-            on the server - so the figure is in the HTML for a crawler
-            and for a visitor whose JavaScript has not arrived.
-            LiveStockCount then subscribes and keeps it current, because
-            the page itself is cached for a minute and a stock figure is
-            the one number on here somebody might act on immediately.
-          */}
-          {typeof unitsInStock === "number" && unitsInStock > 0 && (
-            <LiveStockCount initial={unitsInStock} />
-          )}
         </div>
       </Container>
     </section>
