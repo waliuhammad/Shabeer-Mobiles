@@ -116,8 +116,22 @@ console.log(`${slug}: ${width}x${height}, background rgb ${JSON.stringify(seed)}
  * See the note at the top: a white product on white cannot be cut by
  * colour, and trying destroys it.
  */
-const backdropIsWhite = cornersAgree && dist(seed, [255, 255, 255]) <= 12;
-console.log(`  backdrop ${backdropIsWhite ? "is white - keeping it" : "will be removed"}`);
+/**
+ * LIGHT, not specifically white.
+ *
+ * The test used to be "within 12 of pure white". A flat-lay shot on a
+ * light grey sweep measured 26 away, so it was cut - and the white
+ * charger, white cable and white earbuds case in the same photo were
+ * cut with it, left as fragments. The failure is not about white; it
+ * is that a LIGHT product cannot be separated from a LIGHT backdrop by
+ * colour, whatever the exact shade.
+ *
+ * So any light backdrop is kept. Dark and coloured ones are still cut,
+ * because there the product contrasts with it and the fill has real
+ * information to work from.
+ */
+const backdropIsLight = cornersAgree && Math.min(...seed) >= 215;
+console.log(`  backdrop ${backdropIsLight ? "is light - keeping it" : "will be removed"}`);
 
 /* ---- flood fill inward from the border ---- */
 /**
@@ -145,7 +159,7 @@ for (let y = 0; y < height; y++) {
   pushSeed(width - 1 + y * width);
 }
 
-while (!backdropIsWhite && stack.length) {
+while (!backdropIsLight && stack.length) {
   const [p, from, origin] = stack.pop();
   if (cleared[p]) continue;
 
@@ -231,7 +245,7 @@ if (dropNearArg) {
 /* ---- soften the boundary so compression fringing does not show ---- */
 let feathered = 0;
 const mask = Uint8Array.from(cleared);
-for (let y = 1; !backdropIsWhite && y < height - 1; y++) {
+for (let y = 1; !backdropIsLight && y < height - 1; y++) {
   for (let x = 1; x < width - 1; x++) {
     const p = x + y * width;
     if (mask[p]) continue;
@@ -252,7 +266,7 @@ let minX = width;
 let minY = height;
 let maxX = -1;
 let maxY = -1;
-const isContent = backdropIsWhite
+const isContent = backdropIsLight
   ? (p) => dist(rgb(p), seed) > 10
   : (p) => raw[p * 4 + 3] > 8;
 
