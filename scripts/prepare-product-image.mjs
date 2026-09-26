@@ -59,10 +59,27 @@ const CANVAS = 800;
 /** Product fills this much of the square; the rest is breathing room. */
 const FIT = 0.88;
 
-/** Close enough to the pixel we spread from - lets the fill follow a gradient. */
-const STEP_TOLERANCE = 18;
-/** But never stray this far from the corner colour, or it eats the product. */
-const SEED_TOLERANCE = 78;
+/**
+ * Close enough to the pixel we spread from - lets the fill follow a
+ * gradient. Overridable per image with --step=N.
+ */
+const STEP_TOLERANCE = Number(
+  process.argv.find((a) => a.startsWith("--step="))?.slice(7) ?? 18
+);
+
+/**
+ * But never stray this far from the corner colour, or it eats the
+ * product. Overridable with --seed=N.
+ *
+ * The default suits a plain backdrop. A studio shot that fades from
+ * near-black at the corners to mid-grey behind the product needs far
+ * more headroom - at the default it removed only the corners and left
+ * a dark block in the middle of a white tile. Raising it is safe when
+ * the PRODUCT is light, which is exactly when a dark backdrop is used.
+ */
+const SEED_TOLERANCE = Number(
+  process.argv.find((a) => a.startsWith("--seed="))?.slice(7) ?? 78
+);
 
 /** Fill the square with white rather than leaving it transparent. */
 const CANVAS_BG = { r: 255, g: 255, b: 255, alpha: 1 };
@@ -75,7 +92,14 @@ const rgb = (p) => [raw[p * 4], raw[p * 4 + 1], raw[p * 4 + 2]];
 const dist = (a, b) =>
   Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
 
-/* ---- the background colour, from the four corners ---- */
+/* ---- the background colour, from the four corners ----
+
+   AVERAGED ONLY TO DESCRIBE THE IMAGE, never to drive the fill. One
+   photo had dark corners at the top and white ones at the bottom, and
+   the average came out mid-grey - a colour present nowhere in it, so
+   the fill matched nothing and removed 0%. Each border pixel seeds
+   itself below; this average is just for the log line and the
+   is-it-white decision. */
 const corners = [
   3 + 3 * width,
   width - 4 + 3 * width,
@@ -83,6 +107,7 @@ const corners = [
   width - 4 + (height - 4) * width,
 ].map(rgb);
 const seed = [0, 1, 2].map((k) => Math.round(corners.reduce((s, c) => s + c[k], 0) / 4));
+const cornersAgree = corners.every((c) => dist(c, corners[0]) <= 40);
 console.log(`${slug}: ${width}x${height}, background rgb ${JSON.stringify(seed)}`);
 
 /**
@@ -91,36 +116,86 @@ console.log(`${slug}: ${width}x${height}, background rgb ${JSON.stringify(seed)}
  * See the note at the top: a white product on white cannot be cut by
  * colour, and trying destroys it.
  */
-const backdropIsWhite = dist(seed, [255, 255, 255]) <= 12;
+const backdropIsWhite = cornersAgree && dist(seed, [255, 255, 255]) <= 12;
 console.log(`  backdrop ${backdropIsWhite ? "is white - keeping it" : "will be removed"}`);
 
 /* ---- flood fill inward from the border ---- */
+/**
+ * Every border pixel is its own seed.
+ *
+ * A single global seed assumes one backdrop colour. Mixed backdrops -
+ * dark at the top, white at the bottom - break that assumption
+ * completely. Carrying an `origin` per path lets each region of the
+ * border spread on its own terms, while still being bounded: a path
+ * may drift STEP_TOLERANCE from the pixel it came from and no more
+ * than SEED_TOLERANCE from where that path began.
+ */
 const cleared = new Uint8Array(width * height);
 const stack = [];
-for (let x = 0; x < width; x++) stack.push([x, seed], [x + (height - 1) * width, seed]);
-for (let y = 0; y < height; y++) stack.push([y * width, seed], [width - 1 + y * width, seed]);
+const pushSeed = (p) => {
+  const c = rgb(p);
+  stack.push([p, c, c]);
+};
+for (let x = 0; x < width; x++) {
+  pushSeed(x);
+  pushSeed(x + (height - 1) * width);
+}
+for (let y = 0; y < height; y++) {
+  pushSeed(y * width);
+  pushSeed(width - 1 + y * width);
+}
 
 while (!backdropIsWhite && stack.length) {
-  const [p, from] = stack.pop();
+  const [p, from, origin] = stack.pop();
   if (cleared[p]) continue;
 
   const c = rgb(p);
   if (dist(c, from) > STEP_TOLERANCE) continue;
-  if (dist(c, seed) > SEED_TOLERANCE) continue;
+  if (dist(c, origin) > SEED_TOLERANCE) continue;
 
   cleared[p] = 1;
   raw[p * 4 + 3] = 0;
 
   const x = p % width;
   const y = (p / width) | 0;
-  if (x > 0) stack.push([p - 1, c]);
-  if (x < width - 1) stack.push([p + 1, c]);
-  if (y > 0) stack.push([p - width, c]);
-  if (y < height - 1) stack.push([p + width, c]);
+  if (x > 0) stack.push([p - 1, c, origin]);
+  if (x < width - 1) stack.push([p + 1, c, origin]);
+  if (y > 0) stack.push([p - width, c, origin]);
+  if (y < height - 1) stack.push([p + width, c, origin]);
 }
 
 const removed = cleared.reduce((n, v) => n + v, 0);
 console.log(`  background removed: ${((removed / (width * height)) * 100).toFixed(1)}%`);
+
+/**
+ * Optional: clear whatever dark pixels remain, anywhere.
+ *
+ * A flood fill enters only from the border, so a backdrop ENCLOSED by
+ * the product - the gap inside a coiled cable, the space through a
+ * handle - is unreachable and survives as a blob. Telling the two
+ * apart automatically is the same unsolvable problem as white-on-white,
+ * so this is opt-in per image with --drop-dark=N.
+ *
+ * Only safe when the product itself has no dark parts. Use it on a
+ * white charger on black; never on anything with a black component.
+ */
+const DROP_DARK = Number(
+  process.argv.find((a) => a.startsWith("--drop-dark="))?.slice(12) ?? 0
+);
+
+if (DROP_DARK > 0) {
+  let dropped = 0;
+  for (let p = 0; p < width * height; p++) {
+    if (raw[p * 4 + 3] === 0) continue;
+    const [r, g, b] = rgb(p);
+    if (Math.max(r, g, b) <= DROP_DARK) {
+      raw[p * 4 + 3] = 0;
+      cleared[p] = 1;
+      dropped++;
+    }
+  }
+  console.log(`  enclosed dark pixels cleared: ${dropped}`);
+}
 
 /* ---- soften the boundary so compression fringing does not show ---- */
 let feathered = 0;
@@ -130,7 +205,10 @@ for (let y = 1; !backdropIsWhite && y < height - 1; y++) {
     const p = x + y * width;
     if (mask[p]) continue;
     if (!(mask[p - 1] || mask[p + 1] || mask[p - width] || mask[p + width])) continue;
-    const d = dist(rgb(p), seed);
+    // Distance from the nearest cleared neighbour, not from a global
+    // seed that may describe no part of this image.
+    const neighbours = [p - 1, p + 1, p - width, p + width].filter((q) => mask[q]);
+    const d = Math.min(...neighbours.map((q) => dist(rgb(p), rgb(q))));
     if (d >= STEP_TOLERANCE * 2) continue;
     raw[p * 4 + 3] = Math.round((255 * d) / (STEP_TOLERANCE * 2));
     feathered++;
