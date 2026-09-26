@@ -5,6 +5,7 @@ import {
   Headphones,
   Headset,
   Speaker,
+  Watch,
   BatteryCharging,
   Cable,
   Package,
@@ -30,6 +31,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   "power-banks": BatteryCharging,
   headphones: Headphones,
   speakers: Speaker,
+  watches: Watch,
   accessories: Cable,
 };
 

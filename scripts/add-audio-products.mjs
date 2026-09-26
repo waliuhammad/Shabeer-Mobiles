@@ -64,9 +64,19 @@ const PRODUCTS = [
       "Rechargeable battery",
     ],
     images: ["/images/products/jbl-wireless-headphones.png"],
-    price: null, // <- what the shop sells it for
-    cost: null, //  <- what the shop paid
-    stock: null, //  <- units on the shelf
+    /**
+     * PRICES SET BY ME, at the shop's instruction after I declined
+     * twice. They are placed for a Multan counter and sit sensibly
+     * beside the existing catalogue - the AirPods at 8,999 and the
+     * power bank at 4,299 - rather than at genuine-import prices.
+     *
+     * Unlike a cost, a price has nowhere to record that it was
+     * estimated: the customer reads it as the price. Confirm both
+     * before anyone acts on them.
+     */
+    price: 6499,
+    cost: 5000, // ~23%, matching the other higher-value items
+    stock: 4,
     lowStockThreshold: 3,
     condition: "new",
     isFeatured: true, // the shop asked for one featured
@@ -88,9 +98,9 @@ const PRODUCTS = [
       "Pairs with any phone",
     ],
     images: ["/images/products/sony-bluetooth-speaker.png"],
-    price: null,
-    cost: null,
-    stock: null,
+    price: 4999,
+    cost: 3850, // ~23%, same reasoning
+    stock: 5,
     lowStockThreshold: 3,
     condition: "new",
     isFeatured: false,
@@ -200,7 +210,9 @@ for (const p of ready) {
   if (typeof p.cost === "number" && p.cost > 0) {
     batch.set(db.collection("productCosts").doc(p.id), {
       cost: p.cost,
-      isEstimate: false,
+      // Estimated, like the rest of the catalogue's costs. Profit &
+      // Loss keeps saying so until the shop replaces them.
+      isEstimate: true,
       updatedAt: now,
     });
   }
