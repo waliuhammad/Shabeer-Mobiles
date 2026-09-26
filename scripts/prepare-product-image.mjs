@@ -197,6 +197,37 @@ if (DROP_DARK > 0) {
   console.log(`  enclosed dark pixels cleared: ${dropped}`);
 }
 
+/**
+ * Optional: clear remaining pixels near a given colour, anywhere.
+ *
+ *   --drop-near=R,G,B:tolerance
+ *
+ * The sibling of --drop-dark, for a backdrop that is not dark. A watch
+ * photographed on a coral gradient left the gradient showing THROUGH
+ * the strap loop - enclosed, so the border fill never reached it, and
+ * far too light for --drop-dark.
+ *
+ * Targeting the colour rather than the brightness is what makes it
+ * safe: the white clock hands are also light, and a brightness rule
+ * would have erased them.
+ */
+const dropNearArg = process.argv.find((a) => a.startsWith("--drop-near="))?.slice(12);
+if (dropNearArg) {
+  const [rgbPart, tolPart] = dropNearArg.split(":");
+  const target = rgbPart.split(",").map(Number);
+  const tol = Number(tolPart ?? 50);
+  let dropped = 0;
+  for (let p = 0; p < width * height; p++) {
+    if (raw[p * 4 + 3] === 0) continue;
+    if (dist(rgb(p), target) <= tol) {
+      raw[p * 4 + 3] = 0;
+      cleared[p] = 1;
+      dropped++;
+    }
+  }
+  console.log(`  pixels near ${JSON.stringify(target)} cleared: ${dropped}`);
+}
+
 /* ---- soften the boundary so compression fringing does not show ---- */
 let feathered = 0;
 const mask = Uint8Array.from(cleared);
