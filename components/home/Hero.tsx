@@ -113,9 +113,23 @@ export function Hero({ unitsInStock }: HeroProps) {
           />
 
           {/*
-            The source was a JPEG on a white background. It has been cropped
-            to its content and had the background knocked out, so the
-            products sit directly on the navy with no white box.
+            THE FILENAME CHANGED WITH THE PICTURE, deliberately. Next.js
+            and Vercel cache an optimised image against its URL, not its
+            contents, so replacing the file in place served the OLD
+            picture from cache - which is exactly what happened on the
+            first attempt, and looked like the change had not been made.
+            A new name is a new URL, which no cache can have stale.
+
+            The source was a JPEG on a white background - 69% of it empty
+            margin. scripts/cutout-hero.mjs floods inward from the border
+            to knock the background out and then crops to whatever is
+            left opaque, so the products sit directly on the navy with no
+            white box and no wasted space.
+
+            The flood fill matters rather than a blanket "remove white":
+            the AirPods, the white watch strap and the pale phone frames
+            are white THINGS, and erasing every light pixel would punch
+            holes through them.
 
             `priority` because this is the Largest Contentful Paint element -
             it must not be lazy-loaded.
@@ -123,10 +137,10 @@ export function Hero({ unitsInStock }: HeroProps) {
             phone downloads a phone-sized file.
           */}
           <Image
-            src="/images/hero-products.png"
-            alt="Smartphones, smartwatch, wireless earbuds, power bank, Bluetooth speaker and headphones available at Shabbir Mobiles"
-            width={647}
-            height={437}
+            src="/images/hero-devices.png"
+            alt="Smartphones, tablets, smartwatches, wireless earbuds and headphones"
+            width={625}
+            height={474}
             priority
             sizes="(max-width: 1024px) 90vw, 46vw"
             className="relative mx-auto h-auto w-full drop-shadow-2xl"
