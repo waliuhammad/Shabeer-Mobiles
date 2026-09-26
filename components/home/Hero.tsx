@@ -96,39 +96,27 @@ export function Hero() {
           />
 
           {/*
-            THE FILENAME CARRIES A CONTENT HASH, and that is load-bearing.
-            Next.js and Vercel cache an optimised image against its URL,
-            never its bytes, so replacing this file in place served the
-            PREVIOUS picture from cache - the build was right, the file on
-            disk was right, and the site showed the old image anyway. It
-            took a screenshot to notice. Different pixels now mean a
-            different URL, which nothing can serve stale.
-            scripts/cutout-hero.mjs generates the name and prints it.
+            A PHOTOGRAPHIC SCENE, not a cut-out, so it is NOT run through
+            scripts/cutout-hero.mjs. That tool removes a studio backdrop
+            by flooding inward from the border; this picture's backdrop
+            is a room - a wall, a plant, a marble counter - and there is
+            nothing to flood. It is resized and compressed, and given
+            rounded corners so a rectangular photo sits deliberately on
+            the navy rather than looking like it was dropped there.
 
-            The source was a JPEG on a white background - 69% of it empty
-            margin. scripts/cutout-hero.mjs floods inward from the border
-            to knock the background out and then crops to whatever is
-            left opaque, so the products sit directly on the navy with no
-            white box and no wasted space.
-
-            The flood fill matters rather than a blanket "remove white":
-            the AirPods, the white watch strap and the pale phone frames
-            are white THINGS, and erasing every light pixel would punch
-            holes through them.
-
-            `priority` because this is the Largest Contentful Paint element -
-            it must not be lazy-loaded.
-            `sizes` tells the browser how wide it actually renders, so a
-            phone downloads a phone-sized file.
+            The filename still carries a content hash. Next.js and
+            Vercel cache an optimised image against its URL, never its
+            bytes, so replacing a hero in place serves the previous
+            picture - which happened, and took a screenshot to notice.
           */}
           <Image
-            src="/images/hero-devices-cb643171.png"
-            alt="Smartphones, tablets, smartwatches, wireless earbuds and headphones"
-            width={708}
-            height={536}
+            src="/images/hero-devices-084fb50c.jpg"
+            alt="Phone cases, chargers, cables, power banks, earbuds, headphones, a smartwatch and a memory card on a counter"
+            width={1280}
+            height={853}
             priority
             sizes="(max-width: 1024px) 90vw, 46vw"
-            className="relative mx-auto h-auto w-full drop-shadow-2xl"
+            className="relative mx-auto h-auto w-full rounded-2xl drop-shadow-2xl"
           />
 
         </div>
