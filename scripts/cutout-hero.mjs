@@ -1,23 +1,38 @@
 #!/usr/bin/env node
 /**
- * Turn a white-background product photo into a transparent hero image.
+ * Turn a flat-background product photo into a transparent hero image.
  *
  *   node scripts/cutout-hero.mjs hero-new.png
+ *   node scripts/cutout-hero.mjs hero-new.png --tol=26
+ *   node scripts/cutout-hero.mjs hero-new.png --backdrop=30,61,88
  *
- * WHY A FLOOD FILL AND NOT "REMOVE EVERY WHITE PIXEL"
- * ---------------------------------------------------
- * The collage contains white THINGS: AirPods, a white watch strap, pale
- * phone frames, bright screen highlights. Removing every light pixel
- * would punch holes straight through them.
+ * THE BACKDROP IS READ OFF THE BORDER, NOT ASSUMED TO BE WHITE.
+ * -------------------------------------------------------------
+ * Heroes have arrived on white, on navy, and pre-cut. The rule that
+ * covers all three is the same one: whatever colour the border is, that
+ * is the backdrop. The script takes the median of the border pixels and
+ * treats colours within --tol of it as background. A white photo lands
+ * on ~255,255,255 and behaves exactly as it did before this was
+ * generalised; a navy one lands on its own navy.
  *
- * So this fills inward from the BORDER and stops at the subject. A white
- * pixel is only erased if there is an unbroken path of white from the
- * edge of the image to it - which is exactly what "background" means
- * here, and what "the white bits of an AirPod" does not.
+ * WHY A FLOOD FILL AND NOT "REMOVE EVERY PIXEL OF THAT COLOUR"
+ * ------------------------------------------------------------
+ * The collage contains backdrop-coloured THINGS: white AirPods and
+ * cables on a white shot, dark phones and black headphones on a navy
+ * one. Removing every matching pixel would punch holes straight
+ * through them.
+ *
+ * So this fills inward from the BORDER and stops at the subject. A
+ * pixel is only erased if there is an unbroken path of backdrop from
+ * the edge of the image to it - which is exactly what "background"
+ * means here, and what "the white bits of an AirPod" does not.
+ *
+ * A BORDER THAT IS ALREADY TRANSPARENT is left alone: the picture was
+ * cut at source, there is nothing to flood, and the script just crops.
  *
  * It then crops to whatever is left opaque, which removes the large
  * empty margins a phone screenshot carries, and feathers the boundary
- * so JPEG fringing does not leave a grey halo on the navy hero.
+ * so compression fringing does not leave a halo on the navy hero.
  */
 
 import { readFileSync, writeFileSync, readdirSync, unlinkSync } from "node:fs";
@@ -48,10 +63,23 @@ if (!input) {
 const OUT_DIR = "public/images";
 const OUT_PREFIX = "hero-devices";
 
-/** A pixel this light, reached from the edge, is background. */
-const BACKGROUND_MIN = 234;
-/** Boundary pixels lighter than this get partial alpha, to soften JPEG fringing. */
-const FEATHER_MIN = 200;
+/**
+ * How far a pixel may sit from the backdrop colour and still count as
+ * backdrop, per channel.
+ *
+ * 21 is what the old white-only rule came to: it erased a pixel whose
+ * every channel was >= 234, i.e. within 21 of 255. Keeping the number
+ * keeps a white photo cutting exactly as it did. It is deliberately
+ * tight - a gradient backdrop will not fully clear at this tolerance,
+ * and that is the safe direction to fail, because the loose direction
+ * eats the product.
+ */
+const DEFAULT_TOLERANCE = 21;
+/** Beyond TOLERANCE, a boundary pixel fades out over this much more. */
+const FEATHER_SPAN = 34;
+
+const tolArg = process.argv.find((a) => a.startsWith("--tol="));
+const TOLERANCE = tolArg ? Number(tolArg.slice(6)) : DEFAULT_TOLERANCE;
 
 const src = sharp(readFileSync(input)).ensureAlpha();
 const { width, height } = await src.metadata();
@@ -59,33 +87,72 @@ const raw = await src.raw().toBuffer();
 
 console.log(`input: ${width}x${height}`);
 
-const isLight = (i) =>
-  raw[i] >= BACKGROUND_MIN && raw[i + 1] >= BACKGROUND_MIN && raw[i + 2] >= BACKGROUND_MIN;
+/* ---- what colour is the backdrop? ----
+   Read it off the border rather than assuming white. The median, not
+   the mean: a mean of a dark top edge and a light bottom edge is a
+   mid-grey that matches neither, and silently removes nothing. */
+const borderIdx = [];
+for (let x = 0; x < width; x++) borderIdx.push(x, x + (height - 1) * width);
+for (let y = 0; y < height; y++) borderIdx.push(y * width, width - 1 + y * width);
+
+const borderArg = process.argv.find((a) => a.startsWith("--backdrop="));
+const median = (arr) => arr.sort((a, b) => a - b)[arr.length >> 1];
+
+let backdrop;
+let borderAlpha = 0;
+for (const p of borderIdx) borderAlpha += raw[p * 4 + 3];
+borderAlpha /= borderIdx.length;
+
+if (borderArg) {
+  backdrop = borderArg.slice(11).split(",").map(Number);
+  console.log(`backdrop: ${backdrop.join(",")} (given)`);
+} else if (borderAlpha < 8) {
+  backdrop = null;
+  console.log("backdrop: none - the border is already transparent, so nothing to flood");
+} else {
+  backdrop = [0, 1, 2].map((c) => median(borderIdx.map((p) => raw[p * 4 + c])));
+  /* How uniform is that border? A spread this wide means the backdrop
+     is not flat, and a single colour will leave most of it behind. */
+  const spread = [0, 1, 2].map((c) => {
+    const vals = borderIdx.map((p) => raw[p * 4 + c]);
+    return Math.max(...vals) - Math.min(...vals);
+  });
+  console.log(`backdrop: ${backdrop.join(",")} (from the border, spread ${spread.join("/")})`);
+  if (Math.max(...spread) > TOLERANCE * 3) {
+    console.log("  warning: the border is not one flat colour - expect an incomplete cut");
+  }
+}
+
+/** Distance from the backdrop colour, as the largest per-channel gap. */
+const gap = (i) =>
+  Math.max(
+    Math.abs(raw[i] - backdrop[0]),
+    Math.abs(raw[i + 1] - backdrop[1]),
+    Math.abs(raw[i + 2] - backdrop[2])
+  );
+
+const isBackdrop = (i) => gap(i) <= TOLERANCE;
 
 /* ---- flood fill inward from every border pixel ---- */
 const transparent = new Uint8Array(width * height);
-const stack = [];
 
-for (let x = 0; x < width; x++) {
-  stack.push(x, x + (height - 1) * width);
-}
-for (let y = 0; y < height; y++) {
-  stack.push(y * width, width - 1 + y * width);
-}
+if (backdrop) {
+  const stack = [...borderIdx];
 
-while (stack.length) {
-  const p = stack.pop();
-  if (transparent[p]) continue;
-  if (!isLight(p * 4)) continue;
+  while (stack.length) {
+    const p = stack.pop();
+    if (transparent[p]) continue;
+    if (!isBackdrop(p * 4)) continue;
 
-  transparent[p] = 1;
+    transparent[p] = 1;
 
-  const x = p % width;
-  const y = (p / width) | 0;
-  if (x > 0) stack.push(p - 1);
-  if (x < width - 1) stack.push(p + 1);
-  if (y > 0) stack.push(p - width);
-  if (y < height - 1) stack.push(p + width);
+    const x = p % width;
+    const y = (p / width) | 0;
+    if (x > 0) stack.push(p - 1);
+    if (x < width - 1) stack.push(p + 1);
+    if (y > 0) stack.push(p - width);
+    if (y < height - 1) stack.push(p + width);
+  }
 }
 
 let cleared = 0;
@@ -93,34 +160,44 @@ for (let p = 0; p < transparent.length; p++) {
   if (transparent[p]) {
     raw[p * 4 + 3] = 0;
     cleared++;
+  } else if (raw[p * 4 + 3] === 0) {
+    /* Already transparent at source. Count it so the crop below and
+       the percentage reported agree with each other. */
+    transparent[p] = 1;
+    cleared++;
   }
 }
 console.log(`background removed: ${((cleared / (width * height)) * 100).toFixed(1)}% of pixels`);
 
 /* ---- feather the boundary ----
-   A pixel still opaque but touching transparency, and very light, is
-   almost certainly JPEG fringe rather than the product. Fading it stops
-   a pale outline appearing once the image sits on navy. */
+   A pixel still opaque but touching transparency, and still close to
+   the backdrop colour, is almost certainly compression fringe rather
+   than the product. Fading it stops an outline in the backdrop's
+   colour appearing once the image sits on the hero's navy - which is a
+   pale halo on a white source and a lighter navy edge on a navy one. */
 let feathered = 0;
-const alphaCopy = new Uint8Array(width * height);
-for (let p = 0; p < transparent.length; p++) alphaCopy[p] = transparent[p];
 
-for (let y = 1; y < height - 1; y++) {
-  for (let x = 1; x < width - 1; x++) {
-    const p = x + y * width;
-    if (alphaCopy[p]) continue;
-    const touchesHole =
-      alphaCopy[p - 1] || alphaCopy[p + 1] || alphaCopy[p - width] || alphaCopy[p + width];
-    if (!touchesHole) continue;
+if (backdrop) {
+  const alphaCopy = new Uint8Array(width * height);
+  for (let p = 0; p < transparent.length; p++) alphaCopy[p] = transparent[p];
 
-    const i = p * 4;
-    const min = Math.min(raw[i], raw[i + 1], raw[i + 2]);
-    if (min <= FEATHER_MIN) continue;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const p = x + y * width;
+      if (alphaCopy[p]) continue;
+      const touchesHole =
+        alphaCopy[p - 1] || alphaCopy[p + 1] || alphaCopy[p - width] || alphaCopy[p + width];
+      if (!touchesHole) continue;
 
-    // 200 -> stays opaque, 255 -> fully clear.
-    const t = (min - FEATHER_MIN) / (255 - FEATHER_MIN);
-    raw[i + 3] = Math.round(255 * (1 - t));
-    feathered++;
+      const i = p * 4;
+      const d = gap(i);
+      if (d > TOLERANCE + FEATHER_SPAN) continue;
+
+      // At the tolerance edge -> fully clear; FEATHER_SPAN beyond it -> opaque.
+      const t = (d - TOLERANCE) / FEATHER_SPAN;
+      raw[i + 3] = Math.round(255 * t);
+      feathered++;
+    }
   }
 }
 console.log(`edge pixels softened: ${feathered}`);
