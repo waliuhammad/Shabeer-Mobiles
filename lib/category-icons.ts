@@ -1,10 +1,10 @@
 import {
-  Smartphone,
   Zap,
   Shield,
   ShieldCheck,
   Headphones,
   Headset,
+  Speaker,
   BatteryCharging,
   Cable,
   Package,
@@ -22,13 +22,14 @@ import {
  */
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   all: LayoutGrid,
-  "used-mobiles": Smartphone,
   chargers: Zap,
   covers: Shield,
   protectors: ShieldCheck,
   handsfree: Headphones,
   airpods: Headset,
   "power-banks": BatteryCharging,
+  headphones: Headphones,
+  speakers: Speaker,
   accessories: Cable,
 };
 
