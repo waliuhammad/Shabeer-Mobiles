@@ -73,8 +73,32 @@ export function useFirestoreCollection<T>(
   const active = enabled && isFirebaseConfigured();
 
   const [items, setItems] = useState<T[]>([]);
-  const [loading, setLoading] = useState(active);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Which subscription has actually delivered, rather than a boolean
+   * saying whether one is in flight.
+   *
+   * `useState(active)` looked equivalent and was not. It reads `active`
+   * ONCE, at mount. A subscription gated behind `enabled` - costs,
+   * messages, customers, everything that waits for auth - is inactive
+   * on that first render, so loading was initialised to false and never
+   * set back to true when the gate later opened. The hook reported
+   * "loaded, empty" for the entire window between being enabled and its
+   * first snapshot arriving.
+   *
+   * That is the worst shape a loading flag can take, because callers
+   * use it to decide when their data is ready. It is what made the
+   * product edit form freeze an empty Purchase Cost over a product that
+   * had one: the form's hydration gate believed the catalogue had
+   * finished loading, mounted, and seeded its state from costs that had
+   * not arrived.
+   *
+   * Comparing keys instead means `loading` is DERIVED during render
+   * from something that cannot go stale: has this exact query reported
+   * back yet?
+   */
+  const [deliveredKey, setDeliveredKey] = useState<string | null>(null);
 
   // A stable key so a fresh array literal in the caller does not tear
   // down and rebuild the listener on every render.
@@ -83,10 +107,14 @@ export function useFirestoreCollection<T>(
     [constraints]
   );
 
+  /** Identifies the query currently wanted. null when none is. */
+  const wantedKey = active ? `${collectionName}|${constraintKey}` : null;
+
   useEffect(() => {
     if (!active) return;
 
     let live = true;
+    const key = `${collectionName}|${constraintKey}`;
     const ref = collection(getDb(), collectionName);
     const q = constraints?.length ? query(ref, ...constraints) : query(ref);
 
@@ -103,7 +131,7 @@ export function useFirestoreCollection<T>(
         }
         setItems(next);
         setError(null);
-        setLoading(false);
+        setDeliveredKey(key);
       },
       (err) => {
         if (!live) return;
@@ -112,7 +140,9 @@ export function useFirestoreCollection<T>(
             ? "You do not have permission to read this."
             : err.message
         );
-        setLoading(false);
+        // A refusal is an answer. Marking it delivered stops callers
+        // waiting for ever on a listener that will never report.
+        setDeliveredKey(key);
       }
     );
 
@@ -131,5 +161,6 @@ export function useFirestoreCollection<T>(
   // stale contents of a previous subscription.
   if (!active) return { items: EMPTY, loading: false, error: null };
 
-  return { items, loading, error };
+  // Loading until THIS query has reported back at least once.
+  return { items, loading: deliveredKey !== wantedKey, error };
 }

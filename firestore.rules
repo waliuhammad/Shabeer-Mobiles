@@ -259,14 +259,21 @@ service cloud.firestore {
      * what they send. One trusted server path is easier to reason about
      * than a rule trying to validate a stranger's payload.
      *
-     * Staff read them, and may update the status as they work through
-     * the list. Nothing is deletable: a customer's enquiry that somebody
-     * can quietly erase is a complaint nobody can prove was made.
+     * Staff read them and may update the status as they work through
+     * the list.
+     *
+     * DELETE IS THE OWNER'S ALONE. The shop asked to be able to clear
+     * enquiries, which is fair - it is their inbox, and spam will
+     * arrive. But it stays off the cashier's and the manager's hands:
+     * a customer complaint that any member of staff can quietly erase
+     * is one nobody can prove was ever made. Archive covers the
+     * everyday case and leaves the record.
      */
     match /messages/{messageId} {
       allow read: if isStaff();
       allow update: if isStaff();
-      allow create, delete: if false;
+      allow delete: if isOwner();
+      allow create: if false;
     }
 
     /**

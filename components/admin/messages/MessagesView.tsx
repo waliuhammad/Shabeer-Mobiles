@@ -10,12 +10,23 @@ import {
   Inbox,
   Check,
   Archive,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
 import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
-import { patchDoc } from "@/lib/firebase/write";
+import { patchDoc, removeDoc } from "@/lib/firebase/write";
 import { COLLECTIONS } from "@/lib/firebase/firestore";
 import { formatOrderDateTime } from "@/lib/order-display";
 import { cn } from "@/lib/utils";
@@ -70,6 +81,15 @@ export function MessagesView() {
   const { user } = useAuth();
   const [tab, setTab] = useState<MessageStatus | "ALL">("NEW");
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** The message awaiting a delete confirmation, if any. */
+  const [pendingDelete, setPendingDelete] = useState<ContactMessage | null>(null);
+
+  /**
+   * Only the owner may delete, matching firestore.rules. The button is
+   * hidden rather than shown-and-refused for everyone else: offering an
+   * action that always fails teaches staff to distrust the interface.
+   */
+  const canDelete = user?.role === "SUPER_ADMIN";
 
   const { items, loading, error } = useFirestoreCollection<ContactMessage>(
     COLLECTIONS.messages,
@@ -93,6 +113,21 @@ export function MessagesView() {
     () => items.filter((m) => m.status === "NEW").length,
     [items]
   );
+
+  async function deleteMessage(message: ContactMessage) {
+    setBusyId(message.id);
+    try {
+      await removeDoc(COLLECTIONS.messages, message.id);
+      toast.success("Message deleted.", { description: message.subject });
+    } catch {
+      toast.error("Could not delete.", {
+        description: "Only the owner account may delete a message.",
+      });
+    } finally {
+      setBusyId(null);
+      setPendingDelete(null);
+    }
+  }
 
   async function setStatus(id: string, status: MessageStatus) {
     setBusyId(id);
@@ -239,6 +274,19 @@ export function MessagesView() {
                     Archive
                   </Button>
                 )}
+
+                {canDelete && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busyId === m.id}
+                    onClick={() => setPendingDelete(m)}
+                    className="h-9 gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-3.5" aria-hidden="true" />
+                    Delete
+                  </Button>
+                )}
               </div>
             </li>
           ))}
@@ -246,11 +294,55 @@ export function MessagesView() {
       )}
 
       <p className="mt-6 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
-        Messages are never deleted, only archived - an enquiry somebody can
-        quietly erase is a complaint nobody can prove was made. They arrive
-        through a server route, so nothing on the public internet can write
-        into this collection directly.
+        Archiving keeps an enquiry and takes it off the list; deleting removes
+        it for good and cannot be undone, so it is the owner&apos;s to do and
+        nobody else&apos;s. Messages arrive through a server route, so nothing
+        on the public internet can write into this collection directly.
       </p>
+
+      {/*
+        A confirmation step, because delete here is permanent and there
+        is no bin to recover from. It names the sender and the subject
+        rather than asking "are you sure?" about nothing in particular -
+        the whole point is to catch the case where the wrong row was
+        clicked.
+      */}
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete && (
+                <>
+                  <span className="block font-medium text-foreground">
+                    {pendingDelete.subject}
+                  </span>
+                  <span className="mt-1 block">
+                    From {pendingDelete.name}
+                    {pendingDelete.phone ? ` · ${pendingDelete.phone}` : ""}
+                  </span>
+                  <span className="mt-2 block">
+                    This cannot be undone. If you only want it off the list, use
+                    Archive instead - that keeps the record.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingDelete && deleteMessage(pendingDelete)}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

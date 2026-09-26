@@ -341,7 +341,36 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     [products]
   );
 
-  const loading = productsState.loading || categoriesState.loading;
+  /**
+   * Costs count towards "loaded", and leaving them out was a bug.
+   *
+   * EditProductView gates on isHydrated before rendering the form,
+   * because the form seeds its useState ONCE from what it is handed.
+   * With costs excluded from this flag the gate opened too early: the
+   * form seeded purchasePrice from getCost(), which was still 0, and
+   * froze an empty Purchase Cost box over a product that had a cost
+   * recorded. The owner saw a blank field and no way to tell whether
+   * that meant "none set" or "not loaded".
+   *
+   * authLoading is in here for the same reason, and leaving IT out was
+   * why adding costsState.loading alone changed nothing. The costs hook
+   * reports loading: false while it is DISABLED - which is correct, a
+   * listener that was never opened is not loading - and it stays
+   * disabled until auth resolves. So the gate opened during that window,
+   * before the subscription had even been allowed to start.
+   *
+   * Safe for every other reader: once auth has resolved, a cashier or a
+   * signed-out visitor leaves the costs listener closed and reporting
+   * loading: false, so nothing waits on it.
+   *
+   * CatalogProvider is mounted only in the admin layout, so no
+   * storefront page waits on an auth check it does not need.
+   */
+  const loading =
+    authLoading ||
+    productsState.loading ||
+    categoriesState.loading ||
+    costsState.loading;
   const error = productsState.error ?? categoriesState.error ?? costsState.error;
 
   const value = useMemo(

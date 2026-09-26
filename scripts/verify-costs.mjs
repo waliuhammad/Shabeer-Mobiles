@@ -154,24 +154,41 @@ try {
 
   /* ---- Profit & Loss banners ---- */
   await send("Page.navigate", { url: `${BASE}/admin/profit-loss` });
-  const banners = JSON.parse(
-    await waitFor(
-      send,
-      // Wait for ONE OF THE BANNERS, not for the page. The heading
-      // renders instantly; the banners depend on the costs subscription
-      // delivering, and sampling before it does reports "no banner" for
-      // a page that is merely still loading.
-      `(() => {
-        const t = (document.body && document.body.textContent) || '';
-        const overstates = t.includes('These figures overstate profit');
-        const estimated = t.includes('Based on estimated purchase costs');
-        if (!overstates && !estimated) return null;
-        return JSON.stringify({ overstates, estimated });
-      })()`,
-      30000,
-      "a profit & loss banner"
-    )
-  );
+  /**
+   * Wait for the banners to STOP CHANGING, not for the first one to
+   * appear.
+   *
+   * "These figures overstate profit" renders immediately, because at
+   * first paint no costs have loaded and every product looks
+   * cost-less. Accepting the first banner therefore always reports the
+   * pre-load state - which is how this check reported a failure three
+   * separate times against code that was fine.
+   */
+  const banners = await (async () => {
+    let last = null;
+    let stableSince = Date.now();
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      const raw = await evaluate(
+        send,
+        `(() => {
+          const t = (document.body && document.body.textContent) || '';
+          return JSON.stringify({
+            overstates: t.includes('These figures overstate profit'),
+            estimated: t.includes('Based on estimated purchase costs'),
+          });
+        })()`
+      );
+      if (raw !== last) {
+        last = raw;
+        stableSince = Date.now();
+      } else if (Date.now() - stableSince >= 3000) {
+        return JSON.parse(last);
+      }
+      await sleep(250);
+    }
+    return JSON.parse(last ?? '{"overstates":false,"estimated":false}');
+  })();
 
   console.log("2. Profit & Loss banners:");
   console.log(`     "overstate profit" warning : ${banners.overstates ? "SHOWN" : "gone"}`);
