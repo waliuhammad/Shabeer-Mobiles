@@ -20,16 +20,33 @@
  * so JPEG fringing does not leave a grey halo on the navy hero.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, unlinkSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { join } from "node:path";
 import sharp from "sharp";
 
 const input = process.argv[2];
-const output = process.argv[3] ?? "public/images/hero-devices.png";
 
 if (!input) {
-  console.error("Usage: node scripts/cutout-hero.mjs <input> [output]");
+  console.error("Usage: node scripts/cutout-hero.mjs <input>");
   process.exit(1);
 }
+
+/**
+ * The output is named after its own CONTENT, and that is not tidiness.
+ *
+ * Next.js and Vercel cache an optimised image against its URL, never
+ * its bytes. Replacing hero-devices.png in place therefore served the
+ * PREVIOUS picture from cache - the build was correct, the file on disk
+ * was correct, and the site showed the old image anyway. It took a
+ * screenshot to notice.
+ *
+ * A content hash in the filename makes that impossible: different
+ * pixels, different URL, nothing to serve stale. Old hero files are
+ * removed so the folder does not accumulate them.
+ */
+const OUT_DIR = "public/images";
+const OUT_PREFIX = "hero-devices";
 
 /** A pixel this light, reached from the edge, is background. */
 const BACKGROUND_MIN = 234;
@@ -142,6 +159,21 @@ const png = await sharp(raw, { raw: { width, height, channels: 4 } })
   .png({ compressionLevel: 9 })
   .toBuffer();
 
+const hash = createHash("sha1").update(png).digest("hex").slice(0, 8);
+const filename = `${OUT_PREFIX}-${hash}.png`;
+const output = join(OUT_DIR, filename);
+
+for (const existing of readdirSync(OUT_DIR)) {
+  if (existing.startsWith(OUT_PREFIX) && existing !== filename) {
+    unlinkSync(join(OUT_DIR, existing));
+    console.log(`removed previous hero: ${existing}`);
+  }
+}
+
 writeFileSync(output, png);
+
 console.log(`\nwrote ${output} - ${cropW}x${cropH}, ${png.length} bytes`);
-console.log("Set the <Image> width/height in components/home/Hero.tsx to match.");
+console.log("\nIn components/home/Hero.tsx set:");
+console.log(`  src="/images/${filename}"`);
+console.log(`  width={${cropW}}`);
+console.log(`  height={${cropH}}`);

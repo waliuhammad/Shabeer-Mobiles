@@ -96,12 +96,14 @@ export function Hero() {
           />
 
           {/*
-            THE FILENAME CHANGED WITH THE PICTURE, deliberately. Next.js
-            and Vercel cache an optimised image against its URL, not its
-            contents, so replacing the file in place served the OLD
-            picture from cache - which is exactly what happened on the
-            first attempt, and looked like the change had not been made.
-            A new name is a new URL, which no cache can have stale.
+            THE FILENAME CARRIES A CONTENT HASH, and that is load-bearing.
+            Next.js and Vercel cache an optimised image against its URL,
+            never its bytes, so replacing this file in place served the
+            PREVIOUS picture from cache - the build was right, the file on
+            disk was right, and the site showed the old image anyway. It
+            took a screenshot to notice. Different pixels now mean a
+            different URL, which nothing can serve stale.
+            scripts/cutout-hero.mjs generates the name and prints it.
 
             The source was a JPEG on a white background - 69% of it empty
             margin. scripts/cutout-hero.mjs floods inward from the border
@@ -120,10 +122,10 @@ export function Hero() {
             phone downloads a phone-sized file.
           */}
           <Image
-            src="/images/hero-devices.png"
+            src="/images/hero-devices-31add28b.png"
             alt="Smartphones, tablets, smartwatches, wireless earbuds and headphones"
-            width={625}
-            height={474}
+            width={705}
+            height={534}
             priority
             sizes="(max-width: 1024px) 90vw, 46vw"
             className="relative mx-auto h-auto w-full drop-shadow-2xl"
