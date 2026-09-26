@@ -96,27 +96,28 @@ export function Hero() {
           />
 
           {/*
-            A PHOTOGRAPHIC SCENE, not a cut-out, so it is NOT run through
-            scripts/cutout-hero.mjs. That tool removes a studio backdrop
-            by flooding inward from the border; this picture's backdrop
-            is a room - a wall, a plant, a marble counter - and there is
-            nothing to flood. It is resized and compressed, and given
-            rounded corners so a rectangular photo sits deliberately on
-            the navy rather than looking like it was dropped there.
+            PRE-CUT AT SOURCE, so nothing is removed here: every corner
+            of the supplied PNG reads [0,0,0,0]. scripts/cutout-hero.mjs
+            finds no backdrop to flood, crops to what is opaque, and
+            names the result by content hash.
 
-            The filename still carries a content hash. Next.js and
-            Vercel cache an optimised image against its URL, never its
-            bytes, so replacing a hero in place serves the previous
-            picture - which happened, and took a screenshot to notice.
+            That hash is load-bearing. Next.js and Vercel cache an
+            optimised image against its URL, never its bytes, so
+            replacing a hero in place serves the previous picture -
+            which happened, and took a screenshot to notice.
+
+            No rounded corners, unlike the photographic version this
+            replaces: a cut-out has no rectangle to round, and the
+            products sit straight on the navy.
           */}
           <Image
-            src="/images/hero-devices-084fb50c.jpg"
-            alt="Phone cases, chargers, cables, power banks, earbuds, headphones, a smartwatch and a memory card on a counter"
-            width={1280}
-            height={853}
+            src="/images/hero-devices-b4444b9c.png"
+            alt="Phone cases, chargers, cables, power banks, earbuds, headphones, a smartwatch and a memory card"
+            width={1253}
+            height={695}
             priority
             sizes="(max-width: 1024px) 90vw, 46vw"
-            className="relative mx-auto h-auto w-full rounded-2xl drop-shadow-2xl"
+            className="relative mx-auto h-auto w-full drop-shadow-2xl"
           />
 
         </div>
