@@ -130,7 +130,15 @@ console.log(`${slug}: ${width}x${height}, background rgb ${JSON.stringify(seed)}
  * because there the product contrasts with it and the fill has real
  * information to work from.
  */
-const backdropIsLight = cornersAgree && Math.min(...seed) >= 215;
+/**
+ * --keep-backdrop forces the answer, for the cases the rule gets
+ * wrong. A promo shot on a mid-beige sweep is not "light" by the test
+ * above, so it was cut - and the white cable and white charger in the
+ * same photo were cut with it. The rule cannot know; the person
+ * looking at the picture can.
+ */
+const forceKeep = process.argv.includes("--keep-backdrop");
+const backdropIsLight = forceKeep || (cornersAgree && Math.min(...seed) >= 215);
 console.log(`  backdrop ${backdropIsLight ? "is light - keeping it" : "will be removed"}`);
 
 /* ---- flood fill inward from the border ---- */
