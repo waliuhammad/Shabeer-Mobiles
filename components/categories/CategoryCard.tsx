@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { CategoryIcon } from "@/components/categories/CategoryIcon";
 import { cn } from "@/lib/utils";
 import type { Category } from "@/types";
@@ -26,9 +27,33 @@ export function CategoryCard({ category, productCount, className }: CategoryCard
         className
       )}
     >
-      <span className="flex size-12 items-center justify-center rounded-xl bg-cyan-soft text-secondary transition-colors group-hover:bg-primary group-hover:text-accent">
-        <CategoryIcon slug={category.slug} className="size-6" />
-      </span>
+      {/*
+        A PHOTO WHEN THE CATEGORY HAS ONE, the icon otherwise.
+        
+        Category documents have always carried an `image` field and
+        nothing read it, so a picture could be set and never appear.
+        Both branches keep the same 64px rounded square, so a grid that
+        mixes photographed and un-photographed categories still lines up.
+        
+        The tile is white behind a photo rather than the cyan tint the
+        icons sit on: these are product shots on white, and a tinted
+        surround would show as a ring around the cut-out.
+      */}
+      {category.image ? (
+        <span className="relative size-16 overflow-hidden rounded-xl bg-white ring-1 ring-border">
+          <Image
+            src={category.image}
+            alt=""
+            fill
+            sizes="64px"
+            className="object-contain p-1"
+          />
+        </span>
+      ) : (
+        <span className="flex size-16 items-center justify-center rounded-xl bg-cyan-soft text-secondary transition-colors group-hover:bg-primary group-hover:text-accent">
+          <CategoryIcon slug={category.slug} className="size-7" />
+        </span>
+      )}
 
       <span className="text-sm font-semibold text-foreground">{category.name}</span>
 
