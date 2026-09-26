@@ -12,6 +12,7 @@ import {
 import { FormField } from "@/components/shared/FormField";
 import { ProductImageUploader } from "@/components/admin/products/ProductImageUploader";
 import { useCatalog } from "@/context/CatalogContext";
+import { useSettings } from "@/context/SettingsContext";
 import { useInventory } from "@/context/InventoryContext";
 import {
   PRODUCT_CONDITIONS, PRODUCT_CONDITION_CONFIG,
@@ -40,6 +41,7 @@ interface ProductFormProps {
 export function ProductForm({ product }: ProductFormProps) {
   const router = useRouter();
   const { products, categories, getCost, isCostEstimated, createProduct, updateProduct } = useCatalog();
+  const { settings } = useSettings();
   const { getStock } = useInventory();
   const isEdit = Boolean(product);
 
@@ -69,7 +71,16 @@ export function ProductForm({ product }: ProductFormProps) {
           description: "", features: "",
           price: "", originalPrice: "", purchasePrice: "",
           images: [],
-          lowStockThreshold: "5",
+          /**
+           * From Settings, not a hardcoded 5.
+           *
+           * "Default Low-Stock Threshold" existed on the settings page
+           * and was read by nothing - the owner could set it to 20,
+           * save, and every new product would still start at 5. A
+           * control that stores a value and changes no behaviour is
+           * worse than no control.
+           */
+          lowStockThreshold: String(settings.defaultLowStockThreshold || 5),
           condition: "new",
           // New products start as drafts: nothing reaches customers until
           // it has been checked over.

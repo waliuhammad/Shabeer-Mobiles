@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import { Save, RotateCcw, TriangleAlert, Info, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/shared/FormField";
@@ -217,10 +218,20 @@ function SettingsForm() {
 
       {/* ---------------- TRADING ---------------- */}
       <Section title="Trading Rules">
-        <FormField label="Delivery Charge (Rs)" type="number" value={String(data.deliveryCharge)}
-          onChange={num("deliveryCharge")} error={errors.deliveryCharge} placeholder="0" />
-        <FormField label="Free Delivery Above (Rs)" type="number" value={String(data.freeDeliveryThreshold)}
-          onChange={num("freeDeliveryThreshold")} error={errors.freeDeliveryThreshold} placeholder="0 to disable" />
+        {/*
+          Delivery only exists for online orders, and the shop does not
+          take them. Two boxes asking what to charge for a delivery that
+          cannot be requested are not neutral - somebody fills them in,
+          reasonably expects something to happen, and nothing does.
+        */}
+        {ONLINE_ORDERING_ENABLED && (
+          <>
+            <FormField label="Delivery Charge (Rs)" type="number" value={String(data.deliveryCharge)}
+              onChange={num("deliveryCharge")} error={errors.deliveryCharge} placeholder="0" />
+            <FormField label="Free Delivery Above (Rs)" type="number" value={String(data.freeDeliveryThreshold)}
+              onChange={num("freeDeliveryThreshold")} error={errors.freeDeliveryThreshold} placeholder="0 to disable" />
+          </>
+        )}
         <FormField label="Default Low-Stock Threshold" type="number" value={String(data.defaultLowStockThreshold)}
           onChange={num("defaultLowStockThreshold")} error={errors.defaultLowStockThreshold} placeholder="5" />
         <FormField label="Receipt Footer" value={data.receiptFooter}
@@ -232,15 +243,11 @@ function SettingsForm() {
       <p className="mt-4 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
         <Info className="mt-px size-3.5 shrink-0 text-secondary" aria-hidden="true" />
         <span>
-          <strong className="font-semibold text-foreground">
-            Saving here does not change the storefront yet.
-          </strong>{" "}
-          The footer, contact page and about page are rendered on the server from
-          lib/constants.ts, while this form saves to this browser only - the two
-          cannot meet without a shared database. Use this page to settle on the right
-          values, then copy them into lib/constants.ts once. In Phase 2 this becomes a
-          Firestore <code className="font-mono">settings</code> document that both the
-          admin and the storefront read, and the copying step disappears.
+          Saved to the shop database, so a change made here reaches the counter
+          PC and any other device - not just this browser. The low-stock
+          threshold is the starting value for a NEW product; each product keeps
+          its own afterwards. The receipt footer prints at the bottom of every
+          counter invoice.
         </span>
       </p>
 

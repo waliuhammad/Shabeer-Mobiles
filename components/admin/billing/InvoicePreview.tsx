@@ -4,6 +4,7 @@ import { Printer, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUS_STYLES } from "@/lib/pos-utils";
 import { BUSINESS, FULL_ADDRESS } from "@/lib/constants";
+import { useSettings } from "@/context/SettingsContext";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Invoice } from "@/types";
 
@@ -32,6 +33,8 @@ export function InvoicePreview({
   onClose,
   onNewBill,
 }: InvoicePreviewProps) {
+  const { settings } = useSettings();
+
   const status = PAYMENT_STATUS_STYLES[invoice.paymentStatus];
 
   return (
@@ -189,8 +192,16 @@ export function InvoicePreview({
           </div>
 
           <footer className="mt-6 border-t border-border pt-3 text-center">
+            {/*
+              From Settings, falling back to the shop name.
+
+              "Receipt Footer" was an editable field that printed
+              nowhere - this line was hardcoded, so changing the setting
+              did nothing to a single receipt.
+            */}
             <p className="text-[11px] text-muted-foreground">
-              Thank you for shopping at {BUSINESS.name}.
+              {settings.receiptFooter?.trim() ||
+                `Thank you for shopping at ${BUSINESS.name}.`}
             </p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {FULL_ADDRESS}
