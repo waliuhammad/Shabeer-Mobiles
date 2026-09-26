@@ -11,6 +11,7 @@ import {
   canTransitionOrderStatus,
 } from "@/lib/order-status";
 import { useAuth } from "@/context/AuthContext";
+import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
 import type {
   Order,
   OrderActivity,
@@ -130,7 +131,23 @@ function mapOrder(doc: QueryDocumentSnapshot): Order | null {
 
 export function OrdersProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const enabled = !authLoading && Boolean(user?.isStaff);
+
+  /**
+   * Not subscribed at all while online ordering is off.
+   *
+   * This provider wraps every admin page, so the listener opened on
+   * every screen in the panel - the dashboard, settings, a single
+   * product - and billed a read for every order document each time.
+   * With ordering disabled no order can ever be created, so those were
+   * reads of a collection that cannot change, paid for repeatedly.
+   *
+   * Firestore bills per document a listener first receives, so the cost
+   * of a subscription is the size of the collection, not the size of
+   * what the screen shows. A collection nothing can write to is the
+   * clearest possible case of a subscription worth not opening.
+   */
+  const enabled =
+    ONLINE_ORDERING_ENABLED && !authLoading && Boolean(user?.isStaff);
 
   const state = useFirestoreCollection<Order>(COLLECTIONS.orders, mapOrder, { enabled });
 
