@@ -4,6 +4,7 @@ import { ArrowRight, MapPin, ShieldCheck, Wrench, Truck, Store } from "lucide-re
 import { Container } from "@/components/shared/Container";
 import { Button } from "@/components/ui/button";
 import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
+import { LiveStockCount } from "@/components/home/LiveStockCount";
 
 /**
  * Delivery is something an ONLINE ORDER gets. With ordering off, the
@@ -131,21 +132,19 @@ export function Hero({ unitsInStock }: HeroProps) {
             className="relative mx-auto h-auto w-full drop-shadow-2xl"
           />
 
-          {typeof unitsInStock === "number" && unitsInStock > 0 && (
-            <div className="absolute -bottom-3 -left-1 rounded-xl bg-background p-3 shadow-xl sm:-left-3 sm:p-4">
-              <p className="font-heading text-xl font-bold text-primary sm:text-2xl">
-                {unitsInStock.toLocaleString("en-GB")}
-              </p>
-              <p className="text-[11px] text-muted-foreground">Items in stock</p>
-            </div>
-          )}
+          {/*
+            Server-rendered first, then kept live.
 
-          <div className="absolute -right-1 -top-3 rounded-xl bg-accent p-3 shadow-xl sm:-right-3 sm:p-4">
-            <p className="font-heading text-xl font-bold text-accent-foreground sm:text-2xl">
-              Same Day
-            </p>
-            <p className="text-[11px] text-accent-foreground/80">Repair service</p>
-          </div>
+            Hero receives the count from the page, which reads Firestore
+            on the server - so the figure is in the HTML for a crawler
+            and for a visitor whose JavaScript has not arrived.
+            LiveStockCount then subscribes and keeps it current, because
+            the page itself is cached for a minute and a stock figure is
+            the one number on here somebody might act on immediately.
+          */}
+          {typeof unitsInStock === "number" && unitsInStock > 0 && (
+            <LiveStockCount initial={unitsInStock} />
+          )}
         </div>
       </Container>
     </section>
