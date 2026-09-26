@@ -122,10 +122,10 @@ export function Hero() {
             phone downloads a phone-sized file.
           */}
           <Image
-            src="/images/hero-devices-fd2e80a9.png"
-            alt="Smartphones, smartwatch, wireless earbuds, power bank, Bluetooth speaker and headphones"
-            width={628}
-            height={417}
+            src="/images/hero-devices-a3dd7d70.png"
+            alt="Smartphones, tablets, smartwatches, wireless earbuds and headphones"
+            width={707}
+            height={536}
             priority
             sizes="(max-width: 1024px) 90vw, 46vw"
             className="relative mx-auto h-auto w-full drop-shadow-2xl"
