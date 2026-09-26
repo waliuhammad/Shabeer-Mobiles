@@ -1,0 +1,201 @@
+#!/usr/bin/env node
+/**
+ * Turn a product photo into a square, transparent card image.
+ *
+ *   node scripts/prepare-product-image.mjs <input> <slug>
+ *
+ * Writes public/images/products/<slug>.png at 800x800.
+ *
+ * WHY NOT JUST RESIZE THE PHOTO
+ * -----------------------------
+ * Product photos arrive from all over: different sizes, different
+ * aspect ratios, and backgrounds that range from pure white to dark
+ * grey. Dropped straight into the grid they look like a jumble - one
+ * tile white, the next charcoal, one product tiny and the next
+ * cropped through the middle by object-cover.
+ *
+ * So each one is cut from its background, cropped to the product,
+ * centred on a square transparent canvas and scaled to the same size.
+ * The card's own background then shows through every tile equally, and
+ * the products appear at a consistent scale whatever the source.
+ *
+ * THE BACKGROUND COLOUR IS DETECTED, not assumed white. One of these
+ * photos is on dark grey, and a white-only cut would have left it as a
+ * charcoal rectangle among white ones.
+ *
+ * THE FILL WALKS GRADIENTS. It compares each pixel to the neighbour it
+ * spread from as well as to the corner colour, so a softly shaded
+ * studio backdrop is removed whole instead of leaving a halo where it
+ * darkens away from the seed.
+ *
+ * AND IT IS SKIPPED ENTIRELY FOR WHITE BACKGROUNDS, which is not a
+ * shortcut but a correction. White earphones photographed on white
+ * cannot be separated by colour: the first version of this script
+ * removed 95.6% of that image, walking through the cable and eating
+ * holes out of the earbuds. There is no threshold that distinguishes
+ * "white background" from "white product" - the information is not in
+ * the pixels.
+ *
+ * So a white backdrop is kept and the canvas is filled white to match.
+ * Product photography on white is the ordinary convention anyway, and
+ * every tile ends up on the same white square regardless of what its
+ * source looked like. Only a NON-white backdrop is cut, because that
+ * is the case where leaving it would make one tile charcoal among
+ * white ones.
+ */
+
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import sharp from "sharp";
+
+const [, , input, slug] = process.argv;
+if (!input || !slug) {
+  console.error("Usage: node scripts/prepare-product-image.mjs <input> <slug>");
+  process.exit(1);
+}
+
+const OUT_DIR = join("public", "images", "products");
+const CANVAS = 800;
+/** Product fills this much of the square; the rest is breathing room. */
+const FIT = 0.88;
+
+/** Close enough to the pixel we spread from - lets the fill follow a gradient. */
+const STEP_TOLERANCE = 18;
+/** But never stray this far from the corner colour, or it eats the product. */
+const SEED_TOLERANCE = 78;
+
+/** Fill the square with white rather than leaving it transparent. */
+const CANVAS_BG = { r: 255, g: 255, b: 255, alpha: 1 };
+
+const src = sharp(readFileSync(input)).ensureAlpha();
+const { width, height } = await src.metadata();
+const raw = await src.raw().toBuffer();
+
+const rgb = (p) => [raw[p * 4], raw[p * 4 + 1], raw[p * 4 + 2]];
+const dist = (a, b) =>
+  Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+
+/* ---- the background colour, from the four corners ---- */
+const corners = [
+  3 + 3 * width,
+  width - 4 + 3 * width,
+  3 + (height - 4) * width,
+  width - 4 + (height - 4) * width,
+].map(rgb);
+const seed = [0, 1, 2].map((k) => Math.round(corners.reduce((s, c) => s + c[k], 0) / 4));
+console.log(`${slug}: ${width}x${height}, background rgb ${JSON.stringify(seed)}`);
+
+/**
+ * Is the backdrop white? Then it stays.
+ *
+ * See the note at the top: a white product on white cannot be cut by
+ * colour, and trying destroys it.
+ */
+const backdropIsWhite = dist(seed, [255, 255, 255]) <= 12;
+console.log(`  backdrop ${backdropIsWhite ? "is white - keeping it" : "will be removed"}`);
+
+/* ---- flood fill inward from the border ---- */
+const cleared = new Uint8Array(width * height);
+const stack = [];
+for (let x = 0; x < width; x++) stack.push([x, seed], [x + (height - 1) * width, seed]);
+for (let y = 0; y < height; y++) stack.push([y * width, seed], [width - 1 + y * width, seed]);
+
+while (!backdropIsWhite && stack.length) {
+  const [p, from] = stack.pop();
+  if (cleared[p]) continue;
+
+  const c = rgb(p);
+  if (dist(c, from) > STEP_TOLERANCE) continue;
+  if (dist(c, seed) > SEED_TOLERANCE) continue;
+
+  cleared[p] = 1;
+  raw[p * 4 + 3] = 0;
+
+  const x = p % width;
+  const y = (p / width) | 0;
+  if (x > 0) stack.push([p - 1, c]);
+  if (x < width - 1) stack.push([p + 1, c]);
+  if (y > 0) stack.push([p - width, c]);
+  if (y < height - 1) stack.push([p + width, c]);
+}
+
+const removed = cleared.reduce((n, v) => n + v, 0);
+console.log(`  background removed: ${((removed / (width * height)) * 100).toFixed(1)}%`);
+
+/* ---- soften the boundary so compression fringing does not show ---- */
+let feathered = 0;
+const mask = Uint8Array.from(cleared);
+for (let y = 1; !backdropIsWhite && y < height - 1; y++) {
+  for (let x = 1; x < width - 1; x++) {
+    const p = x + y * width;
+    if (mask[p]) continue;
+    if (!(mask[p - 1] || mask[p + 1] || mask[p - width] || mask[p + width])) continue;
+    const d = dist(rgb(p), seed);
+    if (d >= STEP_TOLERANCE * 2) continue;
+    raw[p * 4 + 3] = Math.round((255 * d) / (STEP_TOLERANCE * 2));
+    feathered++;
+  }
+}
+console.log(`  edge pixels softened: ${feathered}`);
+
+/* ---- crop to the product ---- */
+let minX = width;
+let minY = height;
+let maxX = -1;
+let maxY = -1;
+const isContent = backdropIsWhite
+  ? (p) => dist(rgb(p), seed) > 10
+  : (p) => raw[p * 4 + 3] > 8;
+
+for (let y = 0; y < height; y++) {
+  for (let x = 0; x < width; x++) {
+    if (isContent(x + y * width)) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+}
+if (maxX < 0) {
+  console.error("  nothing left - the fill removed the whole image");
+  process.exit(1);
+}
+
+const cropW = maxX - minX + 1;
+const cropH = maxY - minY + 1;
+
+/* ---- centre on a square canvas at a consistent scale ---- */
+const scale = (CANVAS * FIT) / Math.max(cropW, cropH);
+const w = Math.max(1, Math.round(cropW * scale));
+const h = Math.max(1, Math.round(cropH * scale));
+
+const product = await sharp(raw, { raw: { width, height, channels: 4 } })
+  .extract({ left: minX, top: minY, width: cropW, height: cropH })
+  .resize(w, h, { fit: "fill" })
+  .png()
+  .toBuffer();
+
+mkdirSync(OUT_DIR, { recursive: true });
+const out = join(OUT_DIR, `${slug}.png`);
+
+const png = await sharp({
+  create: {
+    width: CANVAS,
+    height: CANVAS,
+    channels: 4,
+    background: CANVAS_BG,
+  },
+})
+  .composite([
+    {
+      input: product,
+      left: Math.round((CANVAS - w) / 2),
+      top: Math.round((CANVAS - h) / 2),
+    },
+  ])
+  .png({ compressionLevel: 9 })
+  .toBuffer();
+
+writeFileSync(out, png);
+console.log(`  wrote ${out} - ${CANVAS}x${CANVAS}, ${png.length} bytes\n`);

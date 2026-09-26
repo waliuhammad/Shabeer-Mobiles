@@ -172,7 +172,6 @@ export const FOOTER_QUICK_LINKS: NavLink[] = ONLINE_STORE_ENABLED
  */
 export const FOOTER_SHOP_LINKS: NavLink[] = ONLINE_STORE_ENABLED
   ? [
-      { label: "Used Mobiles", href: "/shop?category=used-mobiles" },
       { label: "Chargers", href: "/shop?category=chargers" },
       { label: "Covers", href: "/shop?category=covers" },
       { label: "AirPods", href: "/shop?category=airpods" },

@@ -15,13 +15,6 @@ import type { Category } from "@/types";
  */
 export const categories: Category[] = [
   {
-    id: "cat-mobiles",
-    name: "Used Mobiles",
-    slug: "used-mobiles",
-    description: "Tested second-hand phones with a checking warranty",
-    image: null,
-  },
-  {
     id: "cat-chargers",
     name: "Chargers",
     slug: "chargers",

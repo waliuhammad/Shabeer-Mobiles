@@ -144,6 +144,28 @@ export default async function ProductDetailPage({
     notFound();
   }
 
+  /**
+   * A product that is not ACTIVE has no public page.
+   *
+   * Archiving already removes an item from the shop grid, the category
+   * pages, featured and best sellers - because all of those read
+   * getActiveProducts(). This page did not check, so an archived
+   * product stayed reachable by its direct URL, complete with price and
+   * an "In Stock" badge. Measured, not supposed: after archiving the
+   * used handsets, /product/iphone-12-used still answered 200.
+   *
+   * That is the worst kind of leftover, because the links that reach it
+   * are the ones already shared or indexed - a customer follows an old
+   * link, sees a live-looking listing for something the shop has taken
+   * off sale, and travels in for it.
+   *
+   * Drafts are covered by the same line: a product being written up is
+   * not something a customer should stumble into.
+   */
+  if (product.status !== "active") {
+    notFound();
+  }
+
   // Related products: same category, excluding this one.
   const related = (await getProductsByCategory(product.categorySlug))
     .filter((p) => p.id !== product.id)
