@@ -38,20 +38,26 @@ export function CategoryCard({ category, productCount, className }: CategoryCard
         The tile is white behind a photo rather than the cyan tint the
         icons sit on: these are product shots on white, and a tinted
         surround would show as a ring around the cut-out.
+
+        112px, not 64. At 64 the product was a speck in a mostly empty
+        card - the photos already carry their own margin, so the visible
+        product was smaller again than the box suggested. The ring and
+        inner padding are gone for the same reason: both were stealing
+        width from the thing people are trying to look at.
       */}
       {category.image ? (
-        <span className="relative size-16 overflow-hidden rounded-xl bg-white ring-1 ring-border">
+        <span className="relative size-28 overflow-hidden rounded-xl bg-white">
           <Image
             src={category.image}
             alt=""
             fill
-            sizes="64px"
-            className="object-contain p-1"
+            sizes="112px"
+            className="object-contain"
           />
         </span>
       ) : (
-        <span className="flex size-16 items-center justify-center rounded-xl bg-cyan-soft text-secondary transition-colors group-hover:bg-primary group-hover:text-accent">
-          <CategoryIcon slug={category.slug} className="size-7" />
+        <span className="flex size-28 items-center justify-center rounded-xl bg-cyan-soft text-secondary transition-colors group-hover:bg-primary group-hover:text-accent">
+          <CategoryIcon slug={category.slug} className="size-10" />
         </span>
       )}
 
