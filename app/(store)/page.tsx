@@ -8,7 +8,12 @@ import { Hero } from "@/components/home/Hero";
 import { CategoryGrid } from "@/components/home/CategoryGrid";
 import { VisitShop } from "@/components/home/VisitShop";
 import { ServicesSection } from "@/components/home/ServicesSection";
-import { getFeaturedProducts, getBestSellers } from "@/services/catalog.service";
+import { ProductSlider } from "@/components/products/ProductSlider";
+import {
+  getFeaturedProducts,
+  getBestSellers,
+  getActiveProducts,
+} from "@/services/catalog.service";
 
 /**
  * Rebuild this page at most once a minute, in the background.
@@ -75,15 +80,46 @@ export default async function HomePage() {
 
   // Run together rather than one after the other. Both hit the same
   // cached getActiveProducts() underneath, so this is one read, not two.
-  const [featured, bestSellers] = await Promise.all([
+  const [featured, bestSellers, allProducts] = await Promise.all([
     getFeaturedProducts(4),
     getBestSellers(4),
+    getActiveProducts(),
   ]);
 
 
   return (
     <>
       <Hero />
+
+      {/*
+        EVERYTHING IN THE SHOP, in one sideways row, above the
+        categories.
+
+        It sits here rather than lower down because it answers the
+        first question a visitor has - what do you actually sell - in
+        one gesture, before asking them to pick a category. The two
+        curated rows further down still do their job: this one is the
+        whole catalogue in arrival order, those are chosen.
+
+        getActiveProducts() is the same cached call CategoryGrid
+        already makes to count products per category, so putting the
+        whole catalogue on the page costs no extra Firestore read.
+
+        "All" is honest at 21 products and will stop being honest
+        somewhere in the low hundreds - not for the read, which is
+        already paid, but for the markup and the images. When that
+        day comes this takes a count and the heading changes with it;
+        it is not a reason to cap it now at a size nobody can feel.
+      */}
+      <Container as="section" className="py-12 lg:py-16">
+        <SectionHeading
+          eyebrow="Everything in store"
+          title="All Products"
+          description="The full counter, end to end - drag or swipe to look along the shelf."
+          action={{ label: "View all", href: "/shop" }}
+        />
+        <ProductSlider products={allProducts} label="All products" />
+      </Container>
 
       <CategoryGrid />
 
