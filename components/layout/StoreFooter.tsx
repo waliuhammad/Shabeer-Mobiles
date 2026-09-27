@@ -78,13 +78,35 @@ export function StoreFooter() {
                   {BUSINESS.phoneDisplay}
                 </a>
               </li>
+              {/*
+                THE EMAIL IS WHY THE WHOLE SITE SCROLLED SIDEWAYS.
+
+                At lg this grid is five 157px columns, and the address
+                is a 260px string with no spaces in it. As a bare text
+                node it was an anonymous flex item, whose min-width is
+                auto - meaning min-content - and for an unbreakable
+                word min-content is the whole word. So it could not
+                shrink and could not wrap, and held the document open
+                past the viewport: scrollWidth came to 0.8 x the client
+                width plus a constant 261px, which is this string.
+
+                It showed at every width from 1024 up and on every
+                page, because the footer is in the shared layout - the
+                horizontal scrollbar at the bottom of the window was
+                this one line.
+
+                min-w-0 lets the item shrink; break-all gives it
+                somewhere to break, since an email address has no
+                space to break at. Both are needed: either alone
+                leaves it.
+              */}
               <li>
                 <a
                   href={`mailto:${BUSINESS.email}`}
-                  className="flex items-center gap-2.5 hover:text-accent"
+                  className="flex items-start gap-2.5 hover:text-accent"
                 >
-                  <Mail className="size-4 shrink-0 text-accent" aria-hidden="true" />
-                  {BUSINESS.email}
+                  <Mail className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+                  <span className="min-w-0 break-all">{BUSINESS.email}</span>
                 </a>
               </li>
             </ul>
