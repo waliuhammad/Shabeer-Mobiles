@@ -142,7 +142,16 @@ export function ProductSlider({
                   href={`/product/${product.slug}`}
                   tabIndex={isClone ? -1 : undefined}
                   className={cn(
-                    "group block size-24 overflow-hidden rounded-xl border border-border bg-white transition-all sm:size-28",
+                    /**
+                     * TALLER THAN WIDE, 4:5, rather than the square
+                     * these started as. Almost everything the shop
+                     * sells stands upright in its photograph - phones,
+                     * cases, chargers, power banks, the stand - so a
+                     * square tile spent its width on white margin and
+                     * then shrank the product to fit the height. The
+                     * portrait box gives that height back.
+                     */
+                    "group block h-36 w-28 overflow-hidden rounded-xl border border-border bg-white transition-all sm:h-44 sm:w-36",
                     "hover:-translate-y-0.5 hover:border-secondary/40 hover:shadow-md",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
                   )}
@@ -150,7 +159,7 @@ export function ProductSlider({
                   <ProductImage
                     src={product.images[0]}
                     alt=""
-                    sizes="112px"
+                    sizes="(max-width: 640px) 112px, 144px"
                     wrapperClassName="size-full bg-white"
                     // object-contain, not the component's default cover:
                     // these are cut-out products on white, and cropping
