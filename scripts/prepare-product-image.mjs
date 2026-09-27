@@ -137,9 +137,47 @@ console.log(`${slug}: ${width}x${height}, background rgb ${JSON.stringify(seed)}
  * same photo were cut with it. The rule cannot know; the person
  * looking at the picture can.
  */
+/**
+ * ALREADY CUT AT SOURCE? Then cut nothing.
+ *
+ * A transparent PNG reports rgb 0,0,0 wherever it is clear, because
+ * that is what sits under alpha 0. The corner sampling above reads
+ * only rgb, so a pre-cut picture looked like a photo on a BLACK
+ * backdrop - and got flood-filled as one.
+ *
+ * That is not harmless. The fill spreads from rgb 0,0,0 through
+ * anything dark it touches, so on a picture of black speakers,
+ * black headphones and a black mouse it kept going into the products:
+ * 93.8% removed where only 91.6% was transparent, the difference
+ * being eaten edges.
+ *
+ * Alpha answers the question the corners cannot. If the border is
+ * already clear there is no backdrop to find, so the fill and the
+ * feather are both skipped and the existing alpha is used as-is.
+ */
+let borderAlpha = 0;
+let borderN = 0;
+for (let x = 0; x < width; x++) {
+  borderAlpha += raw[x * 4 + 3] + raw[(x + (height - 1) * width) * 4 + 3];
+  borderN += 2;
+}
+for (let y = 0; y < height; y++) {
+  borderAlpha += raw[y * width * 4 + 3] + raw[(width - 1 + y * width) * 4 + 3];
+  borderN += 2;
+}
+const preCut = borderAlpha / borderN < 8;
+
 const forceKeep = process.argv.includes("--keep-backdrop");
 const backdropIsLight = forceKeep || (cornersAgree && Math.min(...seed) >= 215);
-console.log(`  backdrop ${backdropIsLight ? "is light - keeping it" : "will be removed"}`);
+console.log(
+  `  backdrop ${
+    preCut
+      ? "already transparent - cutting nothing"
+      : backdropIsLight
+        ? "is light - keeping it"
+        : "will be removed"
+  }`
+);
 
 /* ---- flood fill inward from the border ---- */
 /**
@@ -167,7 +205,7 @@ for (let y = 0; y < height; y++) {
   pushSeed(width - 1 + y * width);
 }
 
-while (!backdropIsLight && stack.length) {
+while (!backdropIsLight && !preCut && stack.length) {
   const [p, from, origin] = stack.pop();
   if (cleared[p]) continue;
 
@@ -253,7 +291,7 @@ if (dropNearArg) {
 /* ---- soften the boundary so compression fringing does not show ---- */
 let feathered = 0;
 const mask = Uint8Array.from(cleared);
-for (let y = 1; !backdropIsLight && y < height - 1; y++) {
+for (let y = 1; !backdropIsLight && !preCut && y < height - 1; y++) {
   for (let x = 1; x < width - 1; x++) {
     const p = x + y * width;
     if (mask[p]) continue;
