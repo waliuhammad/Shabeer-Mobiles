@@ -167,8 +167,31 @@ for (let y = 0; y < height; y++) {
 }
 const preCut = borderAlpha / borderN < 8;
 
+/**
+ * --cut-backdrop forces the other answer, and is the rarer case.
+ *
+ * The rule above keeps any light backdrop because a light PRODUCT
+ * cannot be separated from one by colour. That reasoning assumes a
+ * photograph, where the backdrop is a sweep with shading in it. A
+ * rendered product shot can have a backdrop that is one exact value
+ * across the whole frame - one had 229 on 684,837 pixels, with the
+ * white charger sitting at 231-233. Two apart, but both flat, so
+ * --seed=1 --step=1 separates them exactly where a photograph would
+ * not.
+ *
+ * Only worth reaching for with tolerances that tight, and only after
+ * checking the backdrop really is one value. At the defaults this
+ * flag will eat a light product, which is the whole reason the rule
+ * it overrides exists.
+ */
+const forceCut = process.argv.includes("--cut-backdrop");
 const forceKeep = process.argv.includes("--keep-backdrop");
-const backdropIsLight = forceKeep || (cornersAgree && Math.min(...seed) >= 215);
+if (forceCut && forceKeep) {
+  console.error("  --cut-backdrop and --keep-backdrop contradict each other");
+  process.exit(1);
+}
+const backdropIsLight =
+  !forceCut && (forceKeep || (cornersAgree && Math.min(...seed) >= 215));
 console.log(
   `  backdrop ${
     preCut
