@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
 import { ProductImage } from "@/components/shared/ProductImage";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
@@ -35,13 +34,20 @@ interface ProductSliderProps {
  * scrolling and stutters under load. It also means pausing is one
  * CSS property rather than teardown logic.
  *
- * IT CAN BE STOPPED, which is a requirement rather than a courtesy.
- * Content that moves on its own for more than five seconds has to be
- * pausable (WCAG 2.2.2) - motion is a genuine accessibility and
- * nausea problem, and a strip nobody can freeze is one people simply
- * scroll past. So: it pauses on hover, pauses when anything inside
- * takes keyboard focus, has an explicit button, and does not start
- * at all for a visitor whose system asks for reduced motion.
+ * IT CAN STILL BE STOPPED, without the button.
+ *
+ * Content that moves on its own for more than five seconds is meant
+ * to be pausable (WCAG 2.2.2) - motion is a real accessibility and
+ * nausea problem, not a preference. The shop asked for the explicit
+ * Pause control to go, so the three implicit ones are all that is
+ * left and none of them may be removed casually: it pauses on hover,
+ * it pauses when anything inside takes keyboard focus, and it never
+ * starts at all for a visitor whose system asks for reduced motion.
+ *
+ * What that costs is discoverability - nothing on screen says the
+ * strip can be held still - and it leaves a touch user who has not
+ * set a motion preference with no way to stop it. If that matters
+ * later, the button is a dozen lines; it was removed, not lost.
  */
 export function ProductSlider({
   products,
@@ -72,7 +78,7 @@ export function ProductSlider({
   const duration = `${(products.length * secondsPerProduct).toFixed(1)}s`;
 
   return (
-    <div className={cn("flex flex-col", className)}>
+    <div className={className}>
       <div
         ref={frame}
         onMouseEnter={() => setPaused(true)}
@@ -175,34 +181,6 @@ export function ProductSlider({
         </ul>
       </div>
 
-      {/*
-        In normal flow under the strip, not floated over its top-right
-        corner: the section heading already puts a "View all" link
-        there, and two controls on the same line at the same end read
-        as one confusing pair.
-
-        Nothing to pause when the animation never started.
-      */}
-      {!reducedMotion && (
-        <button
-          type="button"
-          onClick={() => setPaused((p) => !p)}
-          className={cn(
-            "mt-3 ms-auto flex items-center gap-1.5 rounded-full border border-border",
-            "bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors",
-            "hover:border-secondary/40 hover:text-secondary",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
-          )}
-        >
-          {paused ? (
-            <Play className="size-3.5" aria-hidden="true" />
-          ) : (
-            <Pause className="size-3.5" aria-hidden="true" />
-          )}
-          {paused ? "Play" : "Pause"}
-          <span className="sr-only"> {label}</span>
-        </button>
-      )}
     </div>
   );
 }
