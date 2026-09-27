@@ -154,6 +154,56 @@
    Turns each variable into a utility class.
    --color-primary -> bg-primary / text-primary / border-primary
    ============================================================ */
+/* ============================================================
+   MARQUEE — the auto-running product strip on the homepage
+   ============================================================
+
+   The track holds the product list TWICE and slides exactly half
+   its own width, so the moment the first copy leaves the frame the
+   second is sitting where it began and the loop is seamless. Any
+   other distance shows a jump.
+
+   Spacing is a margin on each tile rather than `gap`, and that is
+   load-bearing: `gap` adds one more space between the two copies
+   than within them, so half the track width is no longer one whole
+   copy and the loop drifts by that gap on every lap.
+
+   The duration is set per instance from the number of products, so
+   the strip moves at a constant SPEED. A fixed duration would make
+   the same animation crawl with 8 products and blur past with 80.
+
+   prefers-reduced-motion stops it dead rather than slowing it. The
+   component pairs that with overflow-x: auto, so a visitor who has
+   asked for no animation gets a strip they can still push through
+   by hand instead of a row frozen at its first eight items.
+   ============================================================ */
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* IN @layer components ON PURPOSE. Unlayered CSS outranks anything
+   inside a layer, and Tailwind's utilities live in @layer utilities -
+   so an unlayered `.marquee-track` with the `animation` shorthand beat
+   `[animation-play-state:paused]` and reset it to running. The pause
+   button appeared to do nothing. Layered, utilities win as intended. */
+@layer components {
+  .marquee-track {
+    animation: marquee-x var(--marquee-duration, 40s) linear infinite;
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track {
+      animation: none;
+    }
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-poppins), var(--font-inter), ui-sans-serif, sans-serif;

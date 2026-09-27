@@ -111,11 +111,14 @@ export default async function HomePage() {
         day comes this takes a count and the heading changes with it;
         it is not a reason to cap it now at a size nobody can feel.
       */}
-      <Container as="section" className="py-12 lg:py-16">
+      {/* Less bottom padding than a normal section: this one holds a
+          112px strip rather than a row of full cards, and the stock
+          spacing left it floating in white space. */}
+      <Container as="section" className="pb-6 pt-12 lg:pb-8 lg:pt-16">
         <SectionHeading
           eyebrow="Everything in store"
           title="All Products"
-          description="The full counter, end to end - drag or swipe to look along the shelf."
+          description="The full counter, end to end. Hover to hold it still, or tap anything to open it."
           action={{ label: "View all", href: "/shop" }}
         />
         <ProductSlider products={allProducts} label="All products" />

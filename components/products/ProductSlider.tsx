@@ -1,190 +1,199 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { ProductCard } from "@/components/products/ProductCard";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { Pause, Play } from "lucide-react";
+import { ProductImage } from "@/components/shared/ProductImage";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
 interface ProductSliderProps {
   products: Product[];
-  /** Names the scroll region for screen readers and for the arrow labels. */
+  /** Names the strip for screen readers and the pause button. */
   label: string;
+  /**
+   * Seconds each product takes to cross the screen. Duration is
+   * derived from this and the product count, so the strip moves at
+   * one speed whether the shop stocks eight things or eighty.
+   */
+  secondsPerProduct?: number;
   className?: string;
 }
 
 /**
- * A horizontal row of ProductCards that scrolls sideways.
+ * An auto-running strip of product pictures.
  *
- * NATIVE SCROLLING, NOT A CAROUSEL LIBRARY. The project has no carousel
- * dependency and did not need one. `overflow-x-auto` plus scroll-snap
- * gives touch dragging, trackpad swiping, shift+wheel, keyboard arrows,
- * a draggable scrollbar and correct focus behaviour for free - all of
- * which a JavaScript carousel has to reimplement, usually worse. The
- * only thing added here is two buttons for mouse users, who otherwise
- * have no obvious way to scroll a region sideways.
+ * PICTURES ONLY. No name, price, stock line or button - those are
+ * what the grid below is for. A tile this size cannot hold a
+ * two-line product name legibly, and a price that has to be read
+ * before it slides away is a price nobody reads. Each tile is still
+ * a link, and still carries the product name for screen readers.
  *
- * BECAUSE IT IS A SCROLL CONTAINER, it cannot widen the page. That
- * matters: a horizontal strip of cards is exactly the shape of bug
- * that put a scrollbar across the whole site earlier today. An
- * element with overflow-x: auto scrolls its own content instead of
- * pushing the document open, so the cards inside are contained by
- * construction rather than by hoping their widths add up.
+ * A CSS ANIMATION, NOT A SCROLL LOOP. Animating transform runs on
+ * the compositor and does not touch layout; a setInterval nudging
+ * scrollLeft re-runs layout on every tick, fights the user's own
+ * scrolling and stutters under load. It also means pausing is one
+ * CSS property rather than teardown logic.
  *
- * THE CARDS ARE DELIBERATELY NOT A WHOLE NUMBER PER SCREEN. Each
- * breakpoint leaves part of the next card visible, because a row that
- * ends flush with the edge looks like a row that has ended. The peek
- * is what tells you there is more.
+ * IT CAN BE STOPPED, which is a requirement rather than a courtesy.
+ * Content that moves on its own for more than five seconds has to be
+ * pausable (WCAG 2.2.2) - motion is a genuine accessibility and
+ * nausea problem, and a strip nobody can freeze is one people simply
+ * scroll past. So: it pauses on hover, pauses when anything inside
+ * takes keyboard focus, has an explicit button, and does not start
+ * at all for a visitor whose system asks for reduced motion.
  */
-export function ProductSlider({ products, label, className }: ProductSliderProps) {
-  const scroller = useRef<HTMLDivElement>(null);
-  const [atStart, setAtStart] = useState(true);
-  const [atEnd, setAtEnd] = useState(true);
-
-  /**
-   * Both true at once means the content fits and there is nothing to
-   * scroll, which is how the arrows know to hide. Starting both true
-   * means they are hidden until measured, rather than flashing on and
-   * then disappearing.
-   */
-  const measure = useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    // A pixel of slack: sub-pixel layout means scrollLeft rarely lands
-    // exactly on 0 or on max, and a disabled-looking arrow you cannot
-    // press at the very end is worse than one press that does nothing.
-    setAtStart(el.scrollLeft <= 1);
-    setAtEnd(el.scrollLeft >= max - 1);
-  }, []);
+export function ProductSlider({
+  products,
+  label,
+  secondsPerProduct = 2.6,
+  className,
+}: ProductSliderProps) {
+  const [paused, setPaused] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    measure();
-    el.addEventListener("scroll", measure, { passive: true });
-    // Width changes without a scroll event - rotating a phone, opening
-    // devtools, or the cards reflowing at a breakpoint.
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => {
-      el.removeEventListener("scroll", measure);
-      ro.disconnect();
-    };
-  }, [measure, products.length]);
-
-  const page = (direction: -1 | 1) => {
-    const el = scroller.current;
-    if (!el) return;
-    /**
-     * Not a card width - a card width is a different number at every
-     * breakpoint, and hard-coding it means the arrows disagree with
-     * the layout. Just under a full viewport keeps a card of context
-     * on screen across the jump.
-     */
-    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollBy({ left: direction * el.clientWidth * 0.85, behavior: smooth ? "smooth" : "auto" });
-  };
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReducedMotion(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   if (products.length === 0) return null;
 
-  const scrollable = !(atStart && atEnd);
+  /**
+   * The list twice. The first copy scrolls out of frame exactly as
+   * the second arrives where it started, so there is no seam and no
+   * jump - see the note beside @keyframes marquee-x in globals.css.
+   */
+  const track = [...products, ...products];
+  const duration = `${(products.length * secondsPerProduct).toFixed(1)}s`;
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("flex flex-col", className)}>
       <div
-        ref={scroller}
-        /**
-         * tabIndex makes the region focusable so a keyboard user can
-         * reach it and scroll with the arrow keys. role + aria-label
-         * are what make that focus stop explicable rather than a
-         * mystery tab stop.
-         */
-        tabIndex={0}
-        role="region"
-        aria-label={label}
+        ref={frame}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        // Focus, not just hover: a keyboard user tabbing into a tile
+        // would otherwise have it slide out from under them.
+        onFocusCapture={() => setPaused(true)}
+        onBlurCapture={(e) => {
+          if (!frame.current?.contains(e.relatedTarget as Node | null)) setPaused(false);
+        }}
         className={cn(
-          "flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 sm:gap-4",
-          // The scrollbar is hidden, not the scrolling. Every input
-          // method still works; only the grey bar under the cards goes.
-          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-          // A visible ring when focused by keyboard, nothing on click.
-          "rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
+          /**
+           * `relative` is not decoration. A statically positioned
+           * scroll container still contributes its overflowing
+           * content to the VIEWPORT's scrollable area in Chrome, so
+           * the 5376px track made the whole page scroll sideways
+           * even though the frame clipped it visually.
+           *
+           * Found by trying candidates in the live page rather than
+           * reasoning about it: overflow-x hidden, overflow-x clip,
+           * max-width 100% and display flow-root all left the page
+           * overflowing 3929px; position relative took it to 0.
+           *
+           * With motion on it accidentally worked already, because
+           * `will-change: transform` on the animated track contains
+           * it - which is exactly the kind of accident that breaks
+           * the moment the animation is switched off, and did.
+           */
+          "relative overflow-hidden",
+          // With motion switched off the strip stops being a strip and
+          // becomes something to push by hand, rather than a row
+          // permanently showing only its first few items.
+          reducedMotion && "overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         )}
       >
-        {products.map((product) => (
-          <div
-            key={product.id}
-            className="w-[62%] shrink-0 snap-start sm:w-[44%] md:w-[33%] lg:w-[25.5%] xl:w-[20.5%]"
-          >
-            <ProductCard product={product} />
-          </div>
-        ))}
+        <ul
+          className={cn(
+            "flex w-max items-stretch",
+            !reducedMotion && "marquee-track"
+          )}
+          /**
+           * Play state inline rather than as a class. A class puts the
+           * answer at the mercy of the cascade - which it lost once
+           * already - whereas an inline style cannot be outranked by
+           * anything without !important. The duration rides along the
+           * same way.
+           */
+          style={
+            {
+              "--marquee-duration": duration,
+              animationPlayState: paused ? "paused" : "running",
+            } as React.CSSProperties
+          }
+          aria-label={label}
+        >
+          {track.map((product, i) => {
+            // The second copy exists only to make the loop seamless.
+            // Hiding it stops every product being announced twice.
+            const isClone = i >= products.length;
+            return (
+              <li
+                key={`${product.id}-${isClone ? "clone" : "real"}`}
+                className="me-3 shrink-0 sm:me-4"
+                aria-hidden={isClone || undefined}
+              >
+                <Link
+                  href={`/product/${product.slug}`}
+                  tabIndex={isClone ? -1 : undefined}
+                  className={cn(
+                    "group block size-24 overflow-hidden rounded-xl border border-border bg-white transition-all sm:size-28",
+                    "hover:-translate-y-0.5 hover:border-secondary/40 hover:shadow-md",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
+                  )}
+                >
+                  <ProductImage
+                    src={product.images[0]}
+                    alt=""
+                    sizes="112px"
+                    wrapperClassName="size-full bg-white"
+                    // object-contain, not the component's default cover:
+                    // these are cut-out products on white, and cropping
+                    // one to fill a square cuts the product itself.
+                    className="object-contain p-1.5 transition-transform duration-300 group-hover:scale-105"
+                    iconClassName="size-5"
+                  />
+                  <span className="sr-only">{product.name}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
       {/*
-        MOUSE-ONLY AFFORDANCE, and hidden below lg for that reason.
-        Touch users drag; the buttons would only cover the cards. They
-        are also aria-hidden with tabIndex -1: the scroll region above
-        is already focusable and scrolls with the arrow keys, so
-        exposing these would add two tab stops that do nothing new.
+        In normal flow under the strip, not floated over its top-right
+        corner: the section heading already puts a "View all" link
+        there, and two controls on the same line at the same end read
+        as one confusing pair.
+
+        Nothing to pause when the animation never started.
       */}
-      {scrollable && (
-        <>
-          <SliderButton
-            direction="prev"
-            label={label}
-            disabled={atStart}
-            onClick={() => page(-1)}
-          />
-          <SliderButton
-            direction="next"
-            label={label}
-            disabled={atEnd}
-            onClick={() => page(1)}
-          />
-        </>
+      {!reducedMotion && (
+        <button
+          type="button"
+          onClick={() => setPaused((p) => !p)}
+          className={cn(
+            "mt-3 ms-auto flex items-center gap-1.5 rounded-full border border-border",
+            "bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors",
+            "hover:border-secondary/40 hover:text-secondary",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
+          )}
+        >
+          {paused ? (
+            <Play className="size-3.5" aria-hidden="true" />
+          ) : (
+            <Pause className="size-3.5" aria-hidden="true" />
+          )}
+          {paused ? "Play" : "Pause"}
+          <span className="sr-only"> {label}</span>
+        </button>
       )}
     </div>
-  );
-}
-
-function SliderButton({
-  direction,
-  label,
-  disabled,
-  onClick,
-}: {
-  direction: "prev" | "next";
-  label: string;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  const isPrev = direction === "prev";
-  const Icon = isPrev ? ChevronLeft : ChevronRight;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      tabIndex={-1}
-      aria-hidden="true"
-      className={cn(
-        "absolute top-[38%] z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full",
-        "border border-border bg-card text-primary shadow-md transition-all",
-        "hover:border-secondary/40 hover:text-secondary",
-        // Faded rather than removed at the ends, so the row does not
-        // jump sideways as a button appears and disappears.
-        "disabled:pointer-events-none disabled:opacity-0",
-        "lg:flex",
-        isPrev ? "-left-4" : "-right-4"
-      )}
-    >
-      <Icon className="size-5" aria-hidden="true" />
-      <span className="sr-only">
-        {isPrev ? "Scroll back through" : "Scroll forward through"} {label}
-      </span>
-    </button>
   );
 }
