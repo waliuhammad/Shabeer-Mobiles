@@ -6,7 +6,7 @@ import { PriceDisplay } from "@/components/shared/PriceDisplay";
 import { AddToCartButton } from "@/components/products/AddToCartButton";
 import { WishlistButton } from "@/components/products/WishlistButton";
 import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
-import { cn, discountPercent } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
 /**
@@ -35,7 +35,6 @@ interface ProductCardProps {
  */
 export function ProductCard({ product, className }: ProductCardProps) {
   // Derived values - computed from props, never stored in state.
-  const discount = discountPercent(product.price, product.originalPrice);
   const outOfStock = product.stock <= 0;
   const lowStock = !outOfStock && product.stock <= product.lowStockThreshold;
   const href = `/product/${product.slug}`;
@@ -57,12 +56,16 @@ export function ProductCard({ product, className }: ProductCardProps) {
           className="transition-transform duration-300 group-hover:scale-105"
         />
 
+        {/* NO DISCOUNT BADGE. The shop does not want a percentage on the
+            card - not here in the corner, and not beside the price below,
+            which is what showDiscountPercent={false} turns off. The
+            struck-through old price stays: it is the comparison itself,
+            not a claim made about it.
+
+            The wrapper survives the badge because "Used" still goes here
+            and still stacks, should a used handset return to the
+            storefront. */}
         <div className="absolute left-2 top-2 flex flex-col items-start gap-1.5">
-          {discount !== null && (
-            <span className="rounded-md bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-foreground shadow-sm">
-              {discount}% OFF
-            </span>
-          )}
           {product.condition === "used" && (
             <span className="rounded-md bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground shadow-sm">
               Used
@@ -110,6 +113,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
           price={product.price}
           originalPrice={product.originalPrice}
           size="md"
+          showDiscountPercent={false}
           className="mt-auto pt-1"
         />
 

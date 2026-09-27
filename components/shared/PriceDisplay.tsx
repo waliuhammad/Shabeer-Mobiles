@@ -4,6 +4,14 @@ interface PriceDisplayProps {
   price: number;
   originalPrice?: number;
   size?: "sm" | "md" | "lg";
+  /**
+   * Show the saving as a percentage beside the old price.
+   *
+   * Off on the storefront card, where the shop does not want a
+   * discount percentage. The struck-through old price still appears,
+   * because that is the comparison, not the claim about it.
+   */
+  showDiscountPercent?: boolean;
   className?: string;
 }
 
@@ -21,6 +29,7 @@ export function PriceDisplay({
   price,
   originalPrice,
   size = "md",
+  showDiscountPercent = true,
   className,
 }: PriceDisplayProps) {
   const discount = discountPercent(price, originalPrice);
@@ -37,7 +46,9 @@ export function PriceDisplay({
           <span className={cn("text-muted-foreground line-through", s.was)}>
             {formatPrice(originalPrice)}
           </span>
-          <span className={cn("font-semibold text-success", s.was)}>{discount}% OFF</span>
+          {showDiscountPercent && (
+            <span className={cn("font-semibold text-success", s.was)}>{discount}% OFF</span>
+          )}
         </>
       )}
     </div>
