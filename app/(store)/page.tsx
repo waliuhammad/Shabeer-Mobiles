@@ -9,11 +9,7 @@ import { CategoryGrid } from "@/components/home/CategoryGrid";
 import { VisitShop } from "@/components/home/VisitShop";
 import { ServicesSection } from "@/components/home/ServicesSection";
 import { ProductSlider } from "@/components/products/ProductSlider";
-import {
-  getFeaturedProducts,
-  getBestSellers,
-  getActiveProducts,
-} from "@/services/catalog.service";
+import { getBestSellers, getActiveProducts } from "@/services/catalog.service";
 
 /**
  * Rebuild this page at most once a minute, in the background.
@@ -80,8 +76,16 @@ export default async function HomePage() {
 
   // Run together rather than one after the other. Both hit the same
   // cached getActiveProducts() underneath, so this is one read, not two.
-  const [featured, bestSellers, allProducts] = await Promise.all([
-    getFeaturedProducts(4),
+  /**
+   * No Featured row any more - the shop asked for it to go, so the
+   * query goes with it rather than being fetched and dropped.
+   *
+   * getFeaturedProducts() is left in catalog.service.ts. The admin
+   * panel still writes isFeatured and still shows a "Featured" badge,
+   * so the flag is live data with no storefront consumer; deleting the
+   * accessor would only mean writing it again if the row comes back.
+   */
+  const [bestSellers, allProducts] = await Promise.all([
     getBestSellers(4),
     getActiveProducts(),
   ]);
@@ -125,16 +129,6 @@ export default async function HomePage() {
       </Container>
 
       <CategoryGrid />
-
-      <Container as="section" className="py-12 lg:py-16">
-        <SectionHeading
-          eyebrow="Handpicked"
-          title="Featured Products"
-          description="Fresh stock and the deals our customers ask for most."
-          action={{ label: "View all", href: "/shop" }}
-        />
-        <ProductGrid products={featured} />
-      </Container>
 
       <section className="bg-muted/50 py-12 lg:py-16">
         <Container>
