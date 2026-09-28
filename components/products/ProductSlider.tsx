@@ -79,8 +79,19 @@ export function ProductSlider({
 
   return (
     <div className={className}>
-      <div
-        ref={frame}
+      {/*
+        A TINTED PANEL, because glass needs something behind it.
+
+        Frosted glass is a translucent surface plus a blurred view of
+        whatever it covers. On the plain white section this sits in
+        there is nothing to see through, so the tiles would come out
+        as very slightly grey rectangles and nothing more. The soft
+        brand wash below is what the blur has to work with - part of
+        the effect, not decoration added beside it.
+      */}
+      <div className="relative overflow-hidden rounded-2xl border border-white/60 bg-linear-to-br from-cyan-soft/60 via-background to-accent/15 p-4 shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] sm:p-5">
+        <div
+          ref={frame}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         // Focus, not just hover: a keyboard user tabbing into a tile
@@ -157,8 +168,16 @@ export function ProductSlider({
                      * then shrank the product to fit the height. The
                      * portrait box gives that height back.
                      */
-                    "group block h-36 w-28 overflow-hidden rounded-xl border border-border bg-white transition-all sm:h-44 sm:w-36",
-                    "hover:-translate-y-0.5 hover:border-secondary/40 hover:shadow-md",
+                    "group block h-36 w-28 overflow-hidden rounded-xl sm:h-44 sm:w-36",
+                    // The glass: a part-transparent surface, a blur of
+                    // what sits behind it, a bright hairline where the
+                    // light catches the edge, and a soft shadow so it
+                    // reads as lying above the panel rather than
+                    // printed on it.
+                    "border border-white/70 bg-white/35 backdrop-blur-md",
+                    "shadow-[0_4px_16px_rgba(11,31,58,0.10)] ring-1 ring-inset ring-white/40",
+                    "transition-all duration-300",
+                    "hover:-translate-y-0.5 hover:border-white/90 hover:bg-white/55 hover:shadow-[0_10px_28px_rgba(11,31,58,0.16)]",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2"
                   )}
                 >
@@ -166,11 +185,23 @@ export function ProductSlider({
                     src={product.images[0]}
                     alt=""
                     sizes="(max-width: 640px) 112px, 144px"
-                    wrapperClassName="size-full bg-white"
-                    // object-contain, not the component's default cover:
-                    // these are cut-out products on white, and cropping
-                    // one to fill a square cuts the product itself.
-                    className="object-contain p-1.5 transition-transform duration-300 group-hover:scale-105"
+                    wrapperClassName="size-full bg-transparent"
+                    /**
+                     * object-contain, not the component's default
+                     * cover: these are cut-out products on white, and
+                     * cropping one to fill the box cuts the product.
+                     *
+                     * mix-blend-multiply is what makes the glass
+                     * visible at all. Every prepared product image is
+                     * 100% opaque with pure white behind the product -
+                     * measured, not assumed - so a translucent tile
+                     * holding one would still look like a solid white
+                     * card. Multiply leaves white alone (white x
+                     * anything = anything) and keeps everything
+                     * darker, so the plate disappears into the glass
+                     * and only the charger or the cable is left.
+                     */
+                    className="object-contain p-1.5 mix-blend-multiply transition-transform duration-300 group-hover:scale-105"
                     iconClassName="size-5"
                   />
                   <span className="sr-only">{product.name}</span>
@@ -178,9 +209,9 @@ export function ProductSlider({
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </div>
       </div>
-
     </div>
   );
 }
