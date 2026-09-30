@@ -43,8 +43,9 @@ export function RevenueTable({
     (acc, p) => ({
       revenue: acc.revenue + p.revenue,
       grossProfit: acc.grossProfit + p.grossProfit,
+      saleCount: acc.saleCount + p.saleCount,
     }),
-    { revenue: 0, grossProfit: 0 }
+    { revenue: 0, grossProfit: 0, saleCount: 0 }
   );
 
   const margin = (revenue: number, grossProfit: number) =>
@@ -58,8 +59,9 @@ export function RevenueTable({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-foreground">{title}</h2>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            One row per {unitLabel}. Revenue is what was billed; gross profit is
-            what was left after what the goods cost.
+            One row per {unitLabel}. Sales is how many completed sales made up
+            the figure; revenue is what was billed; gross profit is what was
+            left after what the goods cost.
           </p>
         </div>
         {action}
@@ -86,13 +88,16 @@ export function RevenueTable({
         <div className="max-h-[22rem] overflow-y-auto">
           <table className="w-full text-sm">
             <caption className="sr-only">
-              Revenue and gross profit for each {unitLabel} in the selected
-              period
+              Sales count, revenue, gross profit and margin for each {unitLabel}
+              in the selected period
             </caption>
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th scope="col" className="px-4 py-2.5 font-medium">
                   {unitLabel === "month" ? "Month" : "Date"}
+                </th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">
+                  Sales
                 </th>
                 <th scope="col" className="px-3 py-2.5 text-right font-medium">
                   Revenue
@@ -123,6 +128,9 @@ export function RevenueTable({
                     >
                       {p.label}
                     </th>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                      {p.saleCount === 0 ? "-" : p.saleCount}
+                    </td>
                     <td
                       className={cn(
                         "whitespace-nowrap px-3 py-2.5 text-right tabular-nums",
@@ -154,6 +162,9 @@ export function RevenueTable({
                 <th scope="row" className="px-4 py-3 text-left font-semibold text-foreground">
                   Total
                 </th>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-foreground">
+                  {totals.saleCount}
+                </td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-heading font-bold tabular-nums text-foreground">
                   {formatPrice(totals.revenue)}
                 </td>

@@ -92,10 +92,18 @@ export interface FinancialBreakdown extends FinancialSummary {
   expensesByCategory: ExpenseCategoryTotal[];
 }
 
-/** One point on the Revenue Over Time chart. */
+/** One period in the Revenue Over Time table. */
 export interface RevenuePoint {
   key: string;
   label: string;
   revenue: number;
   grossProfit: number;
+  /**
+   * How many completed sales made up that revenue.
+   *
+   * A chart had no room for this and did not miss it. A table does:
+   * "Rs 8,999" reads very differently as one sale than as nine, and
+   * the shop cannot tell which from the money alone.
+   */
+  saleCount: number;
 }

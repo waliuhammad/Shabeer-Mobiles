@@ -305,11 +305,13 @@ export function buildRevenueSeries(
 
   const revenueByKey = new Map<string, number>();
   const profitByKey = new Map<string, number>();
+  const countByKey = new Map<string, number>();
 
   for (const e of entries) {
     const key = bucketKeyFor(e.at, unit);
     revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + e.revenue);
     profitByKey.set(key, (profitByKey.get(key) ?? 0) + e.grossProfit);
+    countByKey.set(key, (countByKey.get(key) ?? 0) + 1);
   }
 
   return buckets.map((b) => ({
@@ -317,6 +319,7 @@ export function buildRevenueSeries(
     label: b.label,
     revenue: revenueByKey.get(b.key) ?? 0,
     grossProfit: profitByKey.get(b.key) ?? 0,
+    saleCount: countByKey.get(b.key) ?? 0,
   }));
 }
 
