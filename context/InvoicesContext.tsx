@@ -55,6 +55,20 @@ function mapLine(raw: unknown): InvoiceLine | null {
     price: typeof l.price === "number" ? l.price : 0,
     total: typeof l.total === "number" ? l.total : 0,
     purchasePrice: typeof l.purchasePrice === "number" ? l.purchasePrice : 0,
+    /**
+     * Carried through, not dropped.
+     *
+     * This mapper rebuilds each line field by field, which is the right
+     * shape - a document from the network is not to be trusted as a
+     * typed object - but it means a field added to InvoiceLine and not
+     * added here vanishes on the way back from Firestore. isCustom did:
+     * the server wrote it, the document held it, and every reader saw
+     * undefined. The off-catalogue badge could never appear, and the
+     * whole point of the flag - letting finance separate figures a
+     * cashier typed from figures the server looked up - was lost in
+     * silence, with nothing failing to say so.
+     */
+    isCustom: l.isCustom === true,
   };
 }
 

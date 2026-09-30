@@ -52,6 +52,10 @@ export function RecentSalesTable() {
     () =>
       getRevenueEntries(orders, invoices).slice(0, 6).map((e) => ({
         reference: e.reference,
+        // Where this sale opens. The finance layer decides it, so the
+        // dashboard cannot drift from /admin/revenue - and it is null
+        // for anything with no detail page rather than guessed at here.
+        href: e.href,
         customerId: e.customerId,
         customerName: e.customerName,
         channel: (e.channel === "POS" ? "physical" : "online") as SalesChannelId,
@@ -111,7 +115,13 @@ export function RecentSalesTable() {
             {recentSales.map((sale) => (
               <tr key={sale.reference} className="transition-colors hover:bg-muted/40">
                 <th scope="row" className="px-5 py-3 text-left font-semibold text-primary">
-                  #{sale.reference}
+                  {sale.href ? (
+                    <Link href={sale.href} className="hover:text-secondary hover:underline">
+                      #{sale.reference}
+                    </Link>
+                  ) : (
+                    <>#{sale.reference}</>
+                  )}
                 </th>
                 <td className="px-3 py-3 text-foreground">{sale.customerName}</td>
                 <td className="px-3 py-3">
@@ -143,7 +153,15 @@ export function RecentSalesTable() {
           <li key={sale.reference} className="space-y-2 px-4 py-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-semibold text-primary">#{sale.reference}</p>
+                <p className="font-semibold text-primary">
+                  {sale.href ? (
+                    <Link href={sale.href} className="hover:text-secondary hover:underline">
+                      #{sale.reference}
+                    </Link>
+                  ) : (
+                    <>#{sale.reference}</>
+                  )}
+                </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {sale.customerName} &middot; {sale.date}
                 </p>

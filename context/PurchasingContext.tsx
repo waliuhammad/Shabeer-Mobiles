@@ -72,6 +72,17 @@ interface PurchasingContextValue {
     paidAmount: number;
     paymentMethod: PurchasePaymentMethod;
     notes: string;
+    /**
+     * The date the purchase actually happened, as yyyy-mm-dd. Omitted
+     * means today.
+     *
+     * Needed to enter history. Without it createdAt was always "now",
+     * so six months of past supplier bills would all have landed in
+     * this month and every figure that reads a date range - Profit &
+     * Loss, the expense and purchase totals, the supplier ledger -
+     * would have been wrong in the same direction.
+     */
+    purchaseDate?: string;
   }) => Promise<PurchaseActionResult>;
 
   /** DRAFT -> RECEIVED, and moves stock. */
@@ -193,6 +204,7 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
       paidAmount: number;
       paymentMethod: PurchasePaymentMethod;
       notes: string;
+      purchaseDate?: string;
     }): Promise<PurchaseActionResult> => {
       const supplier = getSupplier(input.supplierId);
       if (!supplier) return { ok: false, error: "Choose a supplier." };
@@ -214,6 +226,29 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
         input.paidAmount
       );
       const now = new Date().toISOString();
+
+      /**
+       * A back-dated purchase keeps the REAL date as createdAt, because
+       * that is the field every date range reads. updatedAt stays as
+       * now: the record was written today, whatever day it describes,
+       * and conflating the two loses the only trace that this was
+       * entered after the fact.
+       *
+       * Midday, not midnight. A date typed as yyyy-mm-dd has no time
+       * zone, and stamping 00:00 then reading it back somewhere west of
+       * here lands on the previous day - which would quietly file a
+       * purchase in the wrong month at every month boundary.
+       */
+      const createdAt = input.purchaseDate
+        ? new Date(`${input.purchaseDate}T12:00:00`).toISOString()
+        : now;
+
+      if (Number.isNaN(Date.parse(createdAt))) {
+        return { ok: false, error: "That purchase date could not be read." };
+      }
+      if (createdAt > now) {
+        return { ok: false, error: "A purchase cannot be dated in the future." };
+      }
 
       const purchase: Purchase = {
         id: `purchase_${Date.now().toString(36)}`,
@@ -238,7 +273,7 @@ export function PurchasingProvider({ children }: { children: React.ReactNode }) 
         paymentStatus: totals.paymentStatus,
         status: "DRAFT",
         notes: input.notes.trim(),
-        createdAt: now,
+        createdAt,
         updatedAt: now,
         inventoryTransactionIds: [],
       };

@@ -34,6 +34,9 @@ import {
   PURCHASE_PAYMENT_STATUS_CONFIG,
   calculatePurchaseTotals,
 } from "@/lib/purchase-utils";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
+import { toDateInputValue } from "@/lib/date-range";
+import { now } from "@/lib/demo-clock";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product, PurchaseDraftItem, PurchasePaymentMethod } from "@/types";
 
@@ -60,6 +63,12 @@ export function NewPurchaseView() {
   const [paid, setPaid] = useState(0);
   const [method, setMethod] = useState<PurchasePaymentMethod>("cash");
   const [notes, setNotes] = useState("");
+  /**
+   * Defaults to today, but can be moved back. This is what makes it
+   * possible to enter the last six months of supplier bills: without
+   * it every one of them would be stamped with the day it was typed.
+   */
+  const [purchaseDate, setPurchaseDate] = useState(() => toDateInputValue(now()));
   const [error, setError] = useState<string | null>(null);
 
   const products = activeProducts;
@@ -136,6 +145,7 @@ export function NewPurchaseView() {
       paidAmount: paid,
       paymentMethod: method,
       notes,
+      purchaseDate,
     });
 
     if (!result.ok) {
@@ -239,7 +249,8 @@ export function NewPurchaseView() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-foreground">{p.name}</p>
                     <p className="truncate font-mono text-[11px] text-muted-foreground">
-                      {p.sku} &middot; {getStock(p.id)} in stock
+                      {p.sku}
+                      {STOCK_TRACKING_ENABLED && <> &middot; {getStock(p.id)} in stock</>}
                     </p>
                   </div>
                   <Button
@@ -480,6 +491,25 @@ export function NewPurchaseView() {
           </dl>
 
           <div className="mt-3">
+            <label htmlFor="pur-date" className="mb-1 block text-xs font-medium text-muted-foreground">
+              Purchase date
+            </label>
+            <input
+              id="pur-date"
+              type="date"
+              value={purchaseDate}
+              max={toDateInputValue(now())}
+              onChange={(e) => setPurchaseDate(e.target.value)}
+              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm tabular-nums outline-none focus:border-secondary"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              The day the goods were bought. Move it back to enter an older
+              bill - the purchase lands in that month&apos;s figures, not
+              today&apos;s.
+            </p>
+          </div>
+
+          <div className="mt-3">
             <label htmlFor="pur-notes" className="mb-1 block text-xs font-medium text-muted-foreground">
               Notes
             </label>
@@ -512,8 +542,19 @@ export function NewPurchaseView() {
 
           <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
             <Info className="mt-px size-3 shrink-0 text-secondary" aria-hidden="true" />
-            Saving creates a DRAFT. Stock is not affected until you receive the
-            purchase on its detail page - somebody has to count the boxes in.
+            {STOCK_TRACKING_ENABLED ? (
+              <>
+                Saving creates a DRAFT. Stock is not affected until you receive
+                the purchase on its detail page - somebody has to count the
+                boxes in.
+              </>
+            ) : (
+              <>
+                Saving creates a DRAFT. This records what was bought and what
+                was owed, which is what Profit &amp; Loss reads - the shop does
+                not count stock, so nothing on a shelf changes either way.
+              </>
+            )}
           </p>
 
           <Button asChild variant="outline" className="mt-2 h-10 w-full gap-1.5 text-sm">

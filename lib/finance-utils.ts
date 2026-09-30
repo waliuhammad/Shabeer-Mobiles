@@ -158,7 +158,9 @@ function invoiceToEntry(invoice: Invoice): RevenueEntry {
     statusClass: "bg-success/10 text-success",
     paymentLabel: payment.label,
     paymentClass: payment.className,
-    href: null, // counter invoices have no detail route yet
+    // Counter invoices now open, keyed by the number printed on the
+    // receipt - the same convention /admin/orders uses.
+    href: `/admin/invoices/${encodeURIComponent(invoice.invoiceNumber)}`,
   };
 }
 
