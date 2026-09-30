@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { KpiCard } from "@/components/admin/KpiCard";
 import { PeriodFilter } from "@/components/admin/finance/PeriodFilter";
-import { RevenueChart } from "@/components/admin/finance/RevenueChart";
+import { RevenueTable } from "@/components/admin/finance/RevenueTable";
 import { useOrders } from "@/context/OrdersContext";
 import { useInvoices } from "@/context/InvoicesContext";
 import { buildRevenueSeries, getRevenueEntries } from "@/lib/finance-utils";
@@ -180,9 +180,11 @@ export function RevenueView() {
         </p>
       </div>
 
-      {/* ---------------- CHART ---------------- */}
+      {/* ---------------- PERIOD BREAKDOWN ---------------- */}
+      {/* Written out rather than drawn. Same series, same numbers -
+          buildRevenueSeries() above is untouched. */}
       <div className="mt-4">
-        <RevenueChart points={series} unitLabel={unit} />
+        <RevenueTable points={series} unitLabel={unit} />
       </div>
 
       {/* ---------------- FILTERS ---------------- */}

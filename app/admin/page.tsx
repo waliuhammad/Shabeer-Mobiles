@@ -73,10 +73,17 @@ export default function AdminDashboardPage() {
         <LowStockTable />
       </div>
 
+      {/*
+        This line used to say the tables below were demo values and the
+        data was mock. That stopped being true when each of them was
+        moved onto the live contexts, and it is worse than no note at
+        all: a shop that has been told its dashboard is fake will not
+        act on a low-stock warning that is real.
+      */}
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        The KPI row is calculated from real sale, expense and stock records by
-        the shared finance layer. The charts and tables below are still demo
-        values. All underlying data is mock.
+        Every figure on this page comes from real sale, expense and stock
+        records through the shared finance layer - the same one behind Revenue
+        and Profit &amp; Loss, so the three cannot disagree.
       </p>
     </>
   );
