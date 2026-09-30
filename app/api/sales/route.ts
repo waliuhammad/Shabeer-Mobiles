@@ -39,6 +39,41 @@ interface SaleLineInput {
   quantity: number;
 }
 
+/**
+ * An OFF-CATALOGUE line: bought in from another shop for this customer.
+ *
+ * WHY THIS IS ALLOWED TO NAME ITS OWN PRICE AND COST, when rule 2 above
+ * exists precisely to stop that.
+ *
+ * Rule 2 says the browser may not send a price because the price is
+ * already known here - it is on the product document, and a client that
+ * names its own total is a client that can charge zero. That reasoning
+ * needs a product to appeal to. An off-catalogue item has none: there is
+ * no document, no price, no cost, nowhere on the server to look. The
+ * figures exist only in the head of whoever walked to the other shop and
+ * paid them.
+ *
+ * So the choice is not "trusted server figure" against "untrusted client
+ * figure". It is "typed figure, recorded and marked as typed" against
+ * "cannot sell the item at all". The mitigations are:
+ *
+ *   - THE COST IS REQUIRED. A line arriving without one is refused
+ *     rather than defaulted to 0, because 0 would quietly report the
+ *     whole sale price as profit - the exact failure rule 1 guards
+ *     against, arriving by a different door.
+ *   - THE LINE IS MARKED. isCustom rides onto the invoice, so finance
+ *     can always separate what was looked up from what was typed.
+ *   - IT TOUCHES NO STOCK. No product document is read or written and
+ *     no inventory row is created, so nothing off-catalogue can move
+ *     the shelf count of something real.
+ */
+interface CustomLineInput {
+  name: string;
+  quantity: number;
+  price: number;
+  purchasePrice: number;
+}
+
 function isLineArray(v: unknown): v is SaleLineInput[] {
   return (
     Array.isArray(v) &&
@@ -50,6 +85,31 @@ function isLineArray(v: unknown): v is SaleLineInput[] {
         Number.isInteger((l as SaleLineInput).quantity) &&
         (l as SaleLineInput).quantity > 0
     )
+  );
+}
+
+/** Money must be a whole, finite, non-negative number of rupees. */
+function isMoney(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0;
+}
+
+function isCustomLineArray(v: unknown): v is CustomLineInput[] {
+  return (
+    Array.isArray(v) &&
+    v.every((l) => {
+      if (typeof l !== "object" || l === null) return false;
+      const c = l as CustomLineInput;
+      return (
+        typeof c.name === "string" &&
+        c.name.trim().length > 0 &&
+        c.name.length <= 120 &&
+        Number.isInteger(c.quantity) &&
+        c.quantity > 0 &&
+        isMoney(c.price) &&
+        // Required, not optional. See the note above.
+        isMoney(c.purchasePrice)
+      );
+    })
   );
 }
 
@@ -68,6 +128,7 @@ export async function POST(request: Request) {
   let body: {
     customerId?: unknown;
     items?: unknown;
+    customItems?: unknown;
     discount?: unknown;
     paidAmount?: unknown;
     paymentMethod?: unknown;
@@ -78,12 +139,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  if (!isLineArray(body.items) || body.items.length === 0) {
+  const rawItems = body.items ?? [];
+  const rawCustom = body.customItems ?? [];
+
+  if (!isLineArray(rawItems)) {
+    return NextResponse.json({ error: "Invalid product lines." }, { status: 400 });
+  }
+  if (!isCustomLineArray(rawCustom)) {
+    return NextResponse.json(
+      {
+        error:
+          "An off-catalogue item needs a name, a quantity, a price and what the shop paid for it.",
+      },
+      { status: 400 }
+    );
+  }
+  if (rawItems.length === 0 && rawCustom.length === 0) {
     return NextResponse.json({ error: "Add at least one product." }, { status: 400 });
   }
-  // Narrowed once here so the transaction below works with a typed value
-  // rather than re-proving it on every use.
-  const requestedLines: SaleLineInput[] = body.items;
+
+  // Narrowed once here so the transaction below works with typed values
+  // rather than re-proving them on every use.
+  const requestedLines: SaleLineInput[] = rawItems;
+  const requestedCustom: CustomLineInput[] = rawCustom;
 
   const customerId = typeof body.customerId === "string" ? body.customerId : "cus_walkin";
   const requestedDiscount =
@@ -109,8 +187,15 @@ export async function POST(request: Request) {
       );
       const counterRef = db.collection("counters").doc("invoices");
 
-      const productSnaps = await txn.getAll(...productRefs);
-      const costSnaps = await txn.getAll(...costRefs);
+      /**
+       * getAll() throws on an empty argument list, and an empty list is
+       * not a hypothetical here: a bill made entirely of off-catalogue
+       * items has no product refs at all, which is the commonest shape
+       * this feature will take - someone fetched one part from another
+       * shop and is selling just that.
+       */
+      const productSnaps = productRefs.length ? await txn.getAll(...productRefs) : [];
+      const costSnaps = costRefs.length ? await txn.getAll(...costRefs) : [];
       const counterSnap = await txn.get(counterRef);
 
       const lines: InvoiceLine[] = [];
@@ -150,6 +235,35 @@ export async function POST(request: Request) {
         });
 
         stockWrites.push({ ref: productRefs[i], newStock: stock - input.quantity });
+      }
+
+      /**
+       * Off-catalogue lines, appended after the catalogue ones.
+       *
+       * Rounded here rather than trusted as sent: the validator proved
+       * the numbers are finite and non-negative, not that they are whole
+       * rupees. Everything else in this file works in integers.
+       *
+       * No product is read, no stock is written and no stockWrites entry
+       * is pushed - which is what keeps the loop below, that pairs lines
+       * with stock writes by index, correct. Custom lines sit past the
+       * end of that array on purpose.
+       */
+      for (const c of requestedCustom) {
+        const price = Math.round(c.price);
+        const quantity = Math.round(c.quantity);
+        lines.push({
+          // Empty, not synthetic. An id shaped like a product id is an
+          // id something will eventually try to look up.
+          productId: "",
+          name: c.name.trim().slice(0, 120),
+          sku: "",
+          quantity,
+          price,
+          total: price * quantity,
+          purchasePrice: Math.round(c.purchasePrice),
+          isCustom: true,
+        });
       }
 
       const subtotal = lines.reduce((sum, l) => sum + l.total, 0);
@@ -200,7 +314,13 @@ export async function POST(request: Request) {
       txn.set(counterRef, { value: nextSequence });
       txn.set(db.collection("invoices").doc(id), record);
 
-      for (let i = 0; i < lines.length; i++) {
+      /**
+       * Stock moves only for catalogue lines, and stockWrites has one
+       * entry per catalogue line in the same order - so this walks that
+       * array, not `lines`, which now also holds custom rows with no
+       * stock behind them.
+       */
+      for (let i = 0; i < stockWrites.length; i++) {
         const line = lines[i];
         const write = stockWrites[i];
         txn.update(write.ref, { stock: write.newStock });

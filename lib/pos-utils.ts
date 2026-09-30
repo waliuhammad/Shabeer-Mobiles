@@ -140,6 +140,40 @@ export function productToPOSItem(product: Product, quantity = 1): POSCartItem {
   };
 }
 
+/**
+ * An OFF-CATALOGUE line: something bought in from another shop for this
+ * customer, which has no product document behind it.
+ *
+ * The id is generated here and is a cart key, nothing more. It never
+ * reaches the invoice - the server writes productId as "" on a custom
+ * line, because a synthetic id that looks like a product id is an id
+ * something will eventually try to look up.
+ *
+ * stock is set to the quantity rather than 0. Nothing checks it for a
+ * custom line, but leaving it at 0 would make every existing
+ * "quantity > stock" guard fire, and a guard that has to be remembered
+ * at each call site is a guard that will be forgotten at one.
+ */
+export function customToPOSItem(input: {
+  name: string;
+  price: number;
+  purchasePrice: number;
+  quantity: number;
+}): POSCartItem {
+  const quantity = Math.max(1, Math.round(input.quantity));
+  return {
+    productId: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    name: input.name.trim(),
+    sku: "",
+    image: null,
+    price: Math.max(0, Math.round(input.price)),
+    quantity,
+    stock: quantity,
+    isCustom: true,
+    purchasePrice: Math.max(0, Math.round(input.purchasePrice)),
+  };
+}
+
 /* ==================================================================
    INVOICE NUMBERS
 
@@ -200,6 +234,25 @@ export function validateBill(
     if (item.quantity < 1) {
       errors.push(`${item.name}: quantity must be at least 1.`);
     }
+
+    if (item.isCustom) {
+      /**
+       * A custom line has no stock record, so the stock test below is
+       * not merely unnecessary - it is wrong, and would reject every
+       * off-catalogue item. What it has instead are the two things a
+       * catalogue line gets for free from its product document.
+       */
+      if (!item.name.trim()) {
+        errors.push("An off-catalogue item needs a name.");
+      }
+      if (!Number.isFinite(item.purchasePrice) || (item.purchasePrice ?? -1) < 0) {
+        errors.push(
+          `${item.name || "Off-catalogue item"}: enter what the shop paid for it.`
+        );
+      }
+      continue;
+    }
+
     if (item.quantity > item.stock) {
       errors.push(
         `${item.name}: only ${item.stock} ${

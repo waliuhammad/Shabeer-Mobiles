@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useReducer, useState } from "react";
 import {
   calculatePOSTotals,
+  customToPOSItem,
   formatInvoiceNumber,
   productToPOSItem,
 } from "@/lib/pos-utils";
@@ -36,8 +37,17 @@ interface POSState {
   paymentMethod: POSPaymentMethod;
 }
 
+/** What the off-catalogue form collects. */
+export interface CustomLineInput {
+  name: string;
+  price: number;
+  purchasePrice: number;
+  quantity: number;
+}
+
 type POSAction =
   | { type: "ADD_PRODUCT"; product: Product }
+  | { type: "ADD_CUSTOM"; input: CustomLineInput }
   | { type: "SET_QUANTITY"; productId: string; quantity: number }
   | { type: "REMOVE_ITEM"; productId: string }
   | { type: "SET_CUSTOMER"; customerId: string }
@@ -87,19 +97,42 @@ function posReducer(state: POSState, action: POSAction): POSState {
       };
     }
 
+    case "ADD_CUSTOM": {
+      /**
+       * Always a NEW row, never merged into an existing one.
+       *
+       * Two catalogue lines for the same product are the same thing and
+       * get combined. Two off-catalogue items that happen to share a
+       * name need not be: "Charger" bought in at 800 and "Charger"
+       * bought in at 950 are different purchases with different costs,
+       * and silently merging them would average a cost the shop never
+       * paid.
+       */
+      return {
+        ...state,
+        items: [customToPOSItem(action.input), ...state.items],
+      };
+    }
+
     case "SET_QUANTITY": {
       // Clamped here, in the reducer, so no caller can push a line out of
       // range - not the stepper, not a future barcode scanner.
       return {
         ...state,
-        items: state.items.map((item) =>
-          item.productId === action.productId
-            ? {
-                ...item,
-                quantity: Math.min(Math.max(1, action.quantity), item.stock),
-              }
-            : item
-        ),
+        items: state.items.map((item) => {
+          if (item.productId !== action.productId) return item;
+          const wanted = Math.max(1, action.quantity);
+          /**
+           * A custom line has no stock to be capped by. Clamping it to
+           * item.stock would pin it at whatever it was created with, so
+           * the stepper would appear broken; stock moves with it
+           * instead, keeping every downstream "quantity > stock" guard
+           * satisfied without any of them needing to know about custom
+           * lines.
+           */
+          if (item.isCustom) return { ...item, quantity: wanted, stock: wanted };
+          return { ...item, quantity: Math.min(wanted, item.stock) };
+        }),
       };
     }
 
@@ -171,6 +204,11 @@ export function usePOS(startingSequence: number) {
     []
   );
 
+  const addCustomItem = useCallback(
+    (input: CustomLineInput) => dispatch({ type: "ADD_CUSTOM", input }),
+    []
+  );
+
   const setQuantity = useCallback(
     (productId: string, quantity: number) =>
       dispatch({ type: "SET_QUANTITY", productId, quantity }),
@@ -222,6 +260,7 @@ export function usePOS(startingSequence: number) {
     ...state,
     totals,
     addProduct,
+    addCustomItem,
     setQuantity,
     removeItem,
     setCustomer,

@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { POSProductSearch } from "@/components/admin/billing/POSProductSearch";
+import { POSCustomItemDialog } from "@/components/admin/billing/POSCustomItemDialog";
 import { POSCart } from "@/components/admin/billing/POSCart";
 import { POSCustomerPanel } from "@/components/admin/billing/POSCustomerPanel";
 import { POSSummary } from "@/components/admin/billing/POSSummary";
@@ -106,7 +107,24 @@ export function POSTerminal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: pos.customerId,
-          items: pos.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          /**
+           * Split by kind, because the server treats them differently:
+           * a catalogue line is a product id and a quantity and nothing
+           * else, while an off-catalogue line has to carry its own name,
+           * price and cost - there is nowhere on the server to look them
+           * up. See the note at the top of app/api/sales/route.ts.
+           */
+          items: pos.items
+            .filter((i) => !i.isCustom)
+            .map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          customItems: pos.items
+            .filter((i) => i.isCustom)
+            .map((i) => ({
+              name: i.name,
+              quantity: i.quantity,
+              price: i.price,
+              purchasePrice: i.purchasePrice ?? 0,
+            })),
           discount: pos.discount,
           paidAmount: pos.paidAmount,
           paymentMethod: pos.paymentMethod,
@@ -186,6 +204,12 @@ export function POSTerminal() {
             onAdd={pos.addProduct}
             getBilledQuantity={pos.getBilledQuantity}
           />
+
+          {/* Under the search, not above it: the catalogue is what the
+              counter reaches for all day, and this is the exception. */}
+          <div className="mt-3">
+            <POSCustomItemDialog onAdd={pos.addCustomItem} />
+          </div>
         </section>
 
         {/* ---------------- RIGHT: the bill ---------------- */}

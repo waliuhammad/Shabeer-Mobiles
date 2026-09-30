@@ -59,9 +59,15 @@ export function POSCart({ items, onQuantityChange, onRemove }: POSCartProps) {
                 <span className="block truncate font-medium text-foreground">
                   {item.name}
                 </span>
-                <span className="block font-mono text-[11px] text-muted-foreground">
-                  {item.sku}
-                </span>
+                {item.isCustom ? (
+                  <span className="mt-0.5 inline-flex rounded-full bg-cyan-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+                    Off-catalogue
+                  </span>
+                ) : (
+                  <span className="block font-mono text-[11px] text-muted-foreground">
+                    {item.sku}
+                  </span>
+                )}
                 <QuantityWarning item={item} />
               </th>
               <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums text-muted-foreground">
@@ -90,6 +96,11 @@ export function POSCart({ items, onQuantityChange, onRemove }: POSCartProps) {
                 <p className="truncate text-sm font-medium text-foreground">
                   {item.name}
                 </p>
+                {item.isCustom && (
+                  <span className="mt-0.5 inline-flex rounded-full bg-cyan-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+                    Off-catalogue
+                  </span>
+                )}
                 <p className="font-mono text-[11px] text-muted-foreground">
                   {item.sku}
                 </p>
@@ -125,7 +136,12 @@ function QuantityStepper({
   onChange: (productId: string, quantity: number) => void;
 }) {
   const atMin = item.quantity <= 1;
-  const atMax = item.quantity >= item.stock;
+  /**
+   * A custom line has no ceiling. Its `stock` is kept equal to its
+   * quantity so the shared "quantity > stock" guards stay satisfied,
+   * which would otherwise pin this button disabled for ever.
+   */
+  const atMax = !item.isCustom && item.quantity >= item.stock;
 
   return (
     <div className="mx-auto inline-flex items-center rounded-lg border border-border bg-background">
@@ -182,6 +198,9 @@ function RemoveButton({
 
 /** Shown once the line has taken everything on the shelf. */
 function QuantityWarning({ item }: { item: POSCartItem }) {
+  // Nothing on a shelf to run out of - and with stock tracking quantity
+  // this test is true on every custom line, so it must come first.
+  if (item.isCustom) return null;
   if (item.quantity < item.stock) return null;
 
   return (

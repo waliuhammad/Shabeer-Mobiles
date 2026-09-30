@@ -92,8 +92,35 @@ export interface POSCartItem {
   /**
    * Stock as the browser last saw it. Used to cap the quantity stepper.
    * NOT authoritative - see canFulfil() in lib/stock.ts.
+   *
+   * MEANINGLESS ON A CUSTOM LINE, which is why isCustom exists rather
+   * than being inferred from stock === 0. A catalogue product genuinely
+   * out of stock and an off-catalogue item that has no stock record at
+   * all must not be treated the same: the first has to be refused, the
+   * second has to be allowed.
    */
   stock: number;
+  /**
+   * An item the shop does not stock - bought in from another shop for
+   * this customer. It has no product document, no stock to deduct and
+   * no cost on file.
+   */
+  isCustom?: boolean;
+  /**
+   * What the shop paid for a CUSTOM item, typed by whoever bought it in.
+   *
+   * The comment above says this screen must never carry the shop's cost,
+   * and that still holds: this is not a catalogue cost. Nothing about
+   * the shop's own margins is revealed by it - it is one number, for one
+   * item, entered by the person who just paid it.
+   *
+   * It has to be here because there is nowhere else to get it. A
+   * catalogue line's cost is looked up server-side in a collection the
+   * cashier cannot read; an off-catalogue line has no such record, and a
+   * line that reached the books with cost 0 would report the whole sale
+   * price as profit.
+   */
+  purchasePrice?: number;
 }
 
 /** Everything the bill summary needs, computed in one place. */
@@ -169,4 +196,14 @@ export interface InvoiceLine {
    * must not either. Only admin finance pages read this field.
    */
   purchasePrice: number;
+  /**
+   * Bought in for this sale rather than sold from stock.
+   *
+   * Stored explicitly rather than inferred from an empty productId, so
+   * finance can say which figures on a bill were TYPED by a cashier and
+   * which were looked up from the catalogue. That distinction matters:
+   * for a catalogue line the price and the cost are both beyond the
+   * till's reach, and for a custom line neither is.
+   */
+  isCustom?: boolean;
 }

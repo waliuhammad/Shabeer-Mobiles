@@ -132,8 +132,11 @@ export function InvoicePreview({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {invoice.items.map((line) => (
-                <tr key={line.productId}>
+              {/* Keyed by index as well as productId: every off-catalogue
+                  line carries productId "" on purpose, so two of them on
+                  one bill would otherwise collide. */}
+              {invoice.items.map((line, index) => (
+                <tr key={`${line.productId}-${index}`}>
                   <th scope="row" className="py-2 text-left font-normal">
                     <span className="block font-medium text-foreground">
                       {line.name}
