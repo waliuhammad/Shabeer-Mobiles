@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Search, X, PackageSearch } from "lucide-react";
 import { POSProductCard } from "@/components/admin/billing/POSProductCard";
 import { useCatalog } from "@/context/CatalogContext";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import type { Product } from "@/types";
 
 interface POSProductSearchProps {
@@ -59,7 +60,7 @@ export function POSProductSearch({
    */
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (results.length === 1 && results[0].stock > 0) {
+    if (results.length === 1 && (!STOCK_TRACKING_ENABLED || results[0].stock > 0)) {
       onAdd(results[0]);
       setQuery("");
       inputRef.current?.focus();

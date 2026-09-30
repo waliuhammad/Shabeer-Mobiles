@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { where } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { useCatalog } from "@/context/CatalogContext";
 import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
 import { COLLECTIONS } from "@/lib/firebase/firestore";
@@ -89,6 +90,11 @@ export function AdminNotifications() {
 
   const alerts = useMemo<StockAlert[]>(() => {
     const rows: StockAlert[] = [];
+
+    // Nothing to be short of when nothing is counted. Returning early
+    // rather than filtering later keeps the "checking stock" state below
+    // from ever being shown for a check that will never happen.
+    if (!STOCK_TRACKING_ENABLED) return rows;
 
     for (const p of products) {
       // Drafts and archived products are not on sale, so being short of

@@ -4,6 +4,7 @@ import { DashboardKpis } from "@/components/admin/DashboardKpis";
 import { SalesOverview } from "@/components/admin/SalesOverview";
 import { LowStockTable } from "@/components/admin/LowStockTable";
 import { RecentSalesTable } from "@/components/admin/RecentSalesTable";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -68,7 +69,8 @@ export default function AdminDashboardPage() {
       */}
       <div className="mt-4 space-y-4">
         <RecentSalesTable />
-        <LowStockTable />
+        {/* A reorder warning needs a count to compare against. */}
+        {STOCK_TRACKING_ENABLED && <LowStockTable />}
       </div>
 
       {/*
@@ -79,9 +81,9 @@ export default function AdminDashboardPage() {
         act on a low-stock warning that is real.
       */}
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Every figure on this page comes from real sale, expense and stock
-        records through the shared finance layer - the same one behind Revenue
-        and Profit &amp; Loss, so the three cannot disagree.
+        Every figure on this page comes from real sale and expense records
+        through the shared finance layer - the same one behind Revenue and
+        Profit &amp; Loss, so the three cannot disagree.
       </p>
     </>
   );

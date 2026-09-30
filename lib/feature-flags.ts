@@ -106,6 +106,34 @@ export const ONLINE_ORDERING_ENABLED = ONLINE_STORE_ENABLED && ONLINE_ORDERING_W
 export const STAFF_DIRECTORY_ENABLED = false;
 
 /**
+ * Does the shop count stock?
+ *
+ * FALSE - it does not. Every product is treated as always available.
+ *
+ * This is a decision about the business, not the software. The counter
+ * does not keep a running count of what is on the shelf, so a system
+ * that insists on one produces numbers nobody maintains - and a wrong
+ * count is worse than none, because it refuses real sales ("only 2 in
+ * stock") and tells customers things that are not true.
+ *
+ * With this off:
+ *   - no stock figure is shown or entered anywhere: not on the
+ *     storefront, not in the till, not in the product form
+ *   - nothing is ever out of stock, so no sale is refused for it
+ *   - a sale deducts nothing and writes no inventory ledger row
+ *   - Inventory leaves the admin navigation, and Total Stock Value and
+ *     Low Stock leave the dashboard
+ *
+ * WHAT IS DELIBERATELY NOT DONE: nothing is deleted. The stock field
+ * stays on the product documents, the inventoryTransactions ledger
+ * keeps every movement recorded so far, and every component that reads
+ * them still compiles and type-checks. Turning counting back on is this
+ * one boolean, and the history it would need is still there - which it
+ * would not be had the data been dropped.
+ */
+export const STOCK_TRACKING_ENABLED = false;
+
+/**
  * Where a visitor should land.
  *
  * With the shop off there is no public page worth showing, so the root

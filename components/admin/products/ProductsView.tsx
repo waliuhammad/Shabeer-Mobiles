@@ -21,6 +21,7 @@ import {
   calculateCatalogSummary, filterProducts, hasActiveProductFilters,
 } from "@/lib/catalog-utils";
 import { getStockStatus } from "@/lib/stock";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { formatPrice, cn } from "@/lib/utils";
 import type { ProductFilterState } from "@/types";
 
@@ -86,15 +87,22 @@ export function ProductsView() {
           title="Active" value={String(summary.active)}
           Icon={CheckCircle2} tone="success" description="Visible on the storefront"
         />
-        <KpiCard
-          title="Needs Restocking" value={String(summary.lowStock + summary.outOfStock)}
-          Icon={TriangleAlert} tone="gold"
-          description={`${summary.outOfStock} out of stock`}
-        />
-        <KpiCard
-          title="Stock Value" value={formatPrice(summary.stockValue)}
-          Icon={Warehouse} tone="cyan" description="At current cost"
-        />
+        {/* Both of these count things. Neither means anything while
+            stock is untracked, and "Needs Restocking: 0" would read as
+            reassurance rather than as an unanswered question. */}
+        {STOCK_TRACKING_ENABLED && (
+          <>
+            <KpiCard
+              title="Needs Restocking" value={String(summary.lowStock + summary.outOfStock)}
+              Icon={TriangleAlert} tone="gold"
+              description={`${summary.outOfStock} out of stock`}
+            />
+            <KpiCard
+              title="Stock Value" value={formatPrice(summary.stockValue)}
+              Icon={Warehouse} tone="cyan" description="At current cost"
+            />
+          </>
+        )}
       </div>
 
       {/* ---------------- FILTERS ---------------- */}

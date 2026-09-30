@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { isAdminConfigured } from "@/lib/firebase/admin";
 import { getAdminDb } from "@/lib/firebase/admin-db";
 import { verifySession } from "@/lib/auth/dal";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import type { Invoice, InvoiceLine, POSPaymentMethod } from "@/types";
 
 /**
@@ -209,10 +210,16 @@ export async function POST(request: Request) {
         const p = (snap.data() ?? {}) as Record<string, unknown>;
         const stock = typeof p.stock === "number" ? p.stock : 0;
 
-        // Stock is checked against the DATABASE, not against whatever the
-        // till last saw. Two cashiers selling the last unit at the same
-        // moment cannot both succeed.
-        if (input.quantity > stock) {
+        /**
+         * Stock is checked against the DATABASE, not against whatever
+         * the till last saw. Two cashiers selling the last unit at the
+         * same moment cannot both succeed.
+         *
+         * Skipped entirely when the shop does not count stock. This is
+         * the check that would otherwise refuse a real sale on the
+         * strength of a number nobody has been maintaining.
+         */
+        if (STOCK_TRACKING_ENABLED && input.quantity > stock) {
           throw new Error(
             `${p.name ?? input.productId}: only ${stock} in stock, ${input.quantity} requested.`
           );
@@ -319,8 +326,14 @@ export async function POST(request: Request) {
        * entry per catalogue line in the same order - so this walks that
        * array, not `lines`, which now also holds custom rows with no
        * stock behind them.
+       *
+       * The whole loop is skipped when stock is not counted: no
+       * deduction and no ledger row. The invoice is still written above,
+       * so revenue, profit and the customer's history are unaffected -
+       * it is only the shelf count that stops moving, which is the point
+       * of switching counting off.
        */
-      for (let i = 0; i < stockWrites.length; i++) {
+      for (let i = 0; STOCK_TRACKING_ENABLED && i < stockWrites.length; i++) {
         const line = lines[i];
         const write = stockWrites[i];
         txn.update(write.ref, { stock: write.newStock });

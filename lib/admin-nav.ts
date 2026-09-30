@@ -1,4 +1,8 @@
-import { ONLINE_ORDERING_ENABLED, STAFF_DIRECTORY_ENABLED } from "@/lib/feature-flags";
+import {
+  ONLINE_ORDERING_ENABLED,
+  STAFF_DIRECTORY_ENABLED,
+  STOCK_TRACKING_ENABLED,
+} from "@/lib/feature-flags";
 import {
   LayoutDashboard,
   Calculator,
@@ -104,7 +108,15 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { label: "Products", href: "/admin/products", icon: Package, roles: OWNER_MANAGER },
       { label: "Categories", href: "/admin/categories", icon: Tags, roles: OWNER_MANAGER },
-      { label: "Inventory", href: "/admin/inventory", icon: Warehouse, roles: OWNER_MANAGER },
+      /**
+       * Inventory, when stock is counted. Spread rather than listed for
+       * the same reason as the staff directory below: the permissions
+       * table and every nav lookup are built from this array, so a
+       * hidden-but-present entry would still appear in them.
+       */
+      ...(STOCK_TRACKING_ENABLED
+        ? [{ label: "Inventory", href: "/admin/inventory", icon: Warehouse, roles: OWNER_MANAGER }]
+        : []),
     ],
   },
   {

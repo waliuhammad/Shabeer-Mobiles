@@ -5,7 +5,7 @@ import { ProductImage } from "@/components/shared/ProductImage";
 import { PriceDisplay } from "@/components/shared/PriceDisplay";
 import { AddToCartButton } from "@/components/products/AddToCartButton";
 import { WishlistButton } from "@/components/products/WishlistButton";
-import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
+import { ONLINE_ORDERING_ENABLED, STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -35,8 +35,16 @@ interface ProductCardProps {
  */
 export function ProductCard({ product, className }: ProductCardProps) {
   // Derived values - computed from props, never stored in state.
-  const outOfStock = product.stock <= 0;
-  const lowStock = !outOfStock && product.stock <= product.lowStockThreshold;
+  /**
+   * With stock counting off the shop has no count to be out of, so
+   * these are false by construction rather than by the number in the
+   * document happening to be positive. That matters: the seeded stock
+   * figures are still sitting on every product and would otherwise
+   * keep deciding what the card says.
+   */
+  const outOfStock = STOCK_TRACKING_ENABLED && product.stock <= 0;
+  const lowStock =
+    STOCK_TRACKING_ENABLED && !outOfStock && product.stock <= product.lowStockThreshold;
   const href = `/product/${product.slug}`;
 
   return (
@@ -117,16 +125,20 @@ export function ProductCard({ product, className }: ProductCardProps) {
           className="mt-auto pt-1"
         />
 
-        {outOfStock ? (
-          <p className="text-[11px] font-medium text-destructive">Out of stock</p>
-        ) : lowStock ? (
-          <p className="flex items-center gap-1 text-[11px] font-medium text-warning">
-            <Package className="size-3" aria-hidden="true" />
-            Only {product.stock} left
-          </p>
-        ) : (
-          <p className="text-[11px] font-medium text-success">In stock</p>
-        )}
+        {/* No availability line at all while stock is untracked - not
+            even "In stock", which would be a claim the shop has not
+            made. The product being listed is the whole statement. */}
+        {STOCK_TRACKING_ENABLED &&
+          (outOfStock ? (
+            <p className="text-[11px] font-medium text-destructive">Out of stock</p>
+          ) : lowStock ? (
+            <p className="flex items-center gap-1 text-[11px] font-medium text-warning">
+              <Package className="size-3" aria-hidden="true" />
+              Only {product.stock} left
+            </p>
+          ) : (
+            <p className="text-[11px] font-medium text-success">In stock</p>
+          ))}
 
         {/* Stacked, not side by side: at the 2-column mobile grid a card is
             roughly 160px wide, and two buttons in a row would each be too

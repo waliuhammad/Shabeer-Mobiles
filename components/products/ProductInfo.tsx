@@ -2,7 +2,7 @@ import { Check, Package, Truck, ShieldCheck, Store, Phone } from "lucide-react";
 import { PriceDisplay } from "@/components/shared/PriceDisplay";
 import { ProductActions } from "@/components/products/ProductActions";
 import { CounterOnlyNotice } from "@/components/products/CounterOnlyNotice";
-import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
+import { ONLINE_ORDERING_ENABLED, STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import type { Product } from "@/types";
 
 interface ProductInfoProps {
@@ -17,8 +17,11 @@ interface ProductInfoProps {
  * the name, price, rating and feature list are static HTML.
  */
 export function ProductInfo({ product }: ProductInfoProps) {
-  const outOfStock = product.stock <= 0;
-  const lowStock = !outOfStock && product.stock <= product.lowStockThreshold;
+  // False by construction while stock is untracked - see ProductCard
+  // for why the seeded numbers must not be allowed to decide this.
+  const outOfStock = STOCK_TRACKING_ENABLED && product.stock <= 0;
+  const lowStock =
+    STOCK_TRACKING_ENABLED && !outOfStock && product.stock <= product.lowStockThreshold;
 
   /**
    * NO RATING IS SHOWN, because there is nothing to show.
@@ -65,21 +68,26 @@ export function ProductInfo({ product }: ProductInfoProps) {
           size="lg"
         />
 
-        <p className="mt-2 text-sm">
-          {outOfStock ? (
-            <span className="font-medium text-destructive">Out of Stock</span>
-          ) : lowStock ? (
-            <span className="inline-flex items-center gap-1.5 font-medium text-warning">
-              <Package className="size-4" aria-hidden="true" />
-              Low stock - only {product.stock} left
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 font-medium text-success">
-              <Check className="size-4" aria-hidden="true" />
-              In Stock ({product.stock} available)
-            </span>
-          )}
-        </p>
+        {/* Nothing is said about availability while stock is untracked.
+            "In Stock (6 available)" was the most specific claim on this
+            page and the least maintained. */}
+        {STOCK_TRACKING_ENABLED && (
+          <p className="mt-2 text-sm">
+            {outOfStock ? (
+              <span className="font-medium text-destructive">Out of Stock</span>
+            ) : lowStock ? (
+              <span className="inline-flex items-center gap-1.5 font-medium text-warning">
+                <Package className="size-4" aria-hidden="true" />
+                Low stock - only {product.stock} left
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 font-medium text-success">
+                <Check className="size-4" aria-hidden="true" />
+                In Stock ({product.stock} available)
+              </span>
+            )}
+          </p>
+        )}
       </div>
 
       {/* --- Key features --- */}

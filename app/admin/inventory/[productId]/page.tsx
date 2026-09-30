@@ -1,3 +1,4 @@
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProductInventoryView } from "@/components/admin/inventory/ProductInventoryView";
@@ -21,6 +22,13 @@ export async function generateMetadata({
 export default async function ProductInventoryPage({
   params,
 }: PageProps<"/admin/inventory/[productId]">) {
+  /**
+   * Hidden from the navigation is not the same as unreachable. With
+   * stock untracked these pages would still open from a bookmark or a
+   * pasted link and show counts nobody is keeping.
+   */
+  if (!STOCK_TRACKING_ENABLED) notFound();
+
   const { productId } = await params;
   const product = await getProductById(productId);
 

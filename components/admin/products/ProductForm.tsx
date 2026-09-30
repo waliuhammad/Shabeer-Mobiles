@@ -13,6 +13,7 @@ import { FormField } from "@/components/shared/FormField";
 import { ProductImageUploader } from "@/components/admin/products/ProductImageUploader";
 import { useCatalog } from "@/context/CatalogContext";
 import { useSettings } from "@/context/SettingsContext";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { useInventory } from "@/context/InventoryContext";
 import {
   PRODUCT_CONDITIONS, PRODUCT_CONDITION_CONFIG,
@@ -308,28 +309,35 @@ export function ProductForm({ product }: ProductFormProps) {
             </Select>
           </div>
 
-          <FormField
-            label="Low Stock Threshold" type="number" value={data.lowStockThreshold}
-            onChange={(v) => set("lowStockThreshold", v)} error={errors.lowStockThreshold}
-            placeholder="5" required
-          />
+          {/* Neither field is asked for while stock is untracked. The
+              threshold has nothing to compare against, and Current Stock
+              would show a number from a ledger nobody is keeping. */}
+          {STOCK_TRACKING_ENABLED && (
+            <>
+              <FormField
+                label="Low Stock Threshold" type="number" value={data.lowStockThreshold}
+                onChange={(v) => set("lowStockThreshold", v)} error={errors.lowStockThreshold}
+                placeholder="5" required
+              />
 
-          {/* Stock is shown, not edited. */}
-          <div>
-            <span className="mb-1.5 block text-sm font-medium text-foreground">Current Stock</span>
-            <div className="flex h-10 items-center justify-between rounded-lg border border-dashed border-border bg-muted/40 px-3">
-              <span className="text-sm tabular-nums text-foreground">
-                {product ? getStock(product.id) : 0}
-              </span>
-              {product ? (
-                <Link href={`/admin/inventory/${product.id}`} className="text-xs font-medium text-secondary hover:underline">
-                  Adjust in inventory
-                </Link>
-              ) : (
-                <span className="text-xs text-muted-foreground">Starts at 0</span>
-              )}
-            </div>
-          </div>
+              {/* Stock is shown, not edited. */}
+              <div>
+                <span className="mb-1.5 block text-sm font-medium text-foreground">Current Stock</span>
+                <div className="flex h-10 items-center justify-between rounded-lg border border-dashed border-border bg-muted/40 px-3">
+                  <span className="text-sm tabular-nums text-foreground">
+                    {product ? getStock(product.id) : 0}
+                  </span>
+                  {product ? (
+                    <Link href={`/admin/inventory/${product.id}`} className="text-xs font-medium text-secondary hover:underline">
+                      Adjust in inventory
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Starts at 0</span>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
             <input type="checkbox" checked={data.isFeatured}
@@ -347,10 +355,21 @@ export function ProductForm({ product }: ProductFormProps) {
 
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="mt-px size-3.5 shrink-0 text-secondary" aria-hidden="true" />
-          Stock cannot be typed in here. It changes only through receiving a
-          purchase or a recorded inventory adjustment, so every unit can be traced
-          to a reason. A form that could set it to any number would let stock be
-          created from nothing, and the ledger would stop matching the shelf.
+          {STOCK_TRACKING_ENABLED ? (
+            <>
+              Stock cannot be typed in here. It changes only through receiving a
+              purchase or a recorded inventory adjustment, so every unit can be
+              traced to a reason. A form that could set it to any number would let
+              stock be created from nothing, and the ledger would stop matching
+              the shelf.
+            </>
+          ) : (
+            <>
+              This shop does not count stock. Every product is treated as
+              available, so there is no quantity to enter here and nothing is
+              ever refused at the till for being sold out.
+            </>
+          )}
         </p>
       </section>
 

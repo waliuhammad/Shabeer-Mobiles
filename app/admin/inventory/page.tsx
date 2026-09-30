@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileClock } from "lucide-react";
@@ -15,6 +17,13 @@ export const metadata: Metadata = { title: "Inventory" };
  * knows about, so the working parts are client-side.
  */
 export default function InventoryPage() {
+  /**
+   * Hidden from the navigation is not the same as unreachable. With
+   * stock untracked these pages would still open from a bookmark or a
+   * pasted link and show counts nobody is keeping.
+   */
+  if (!STOCK_TRACKING_ENABLED) notFound();
+
   return (
     <>
       <AdminPageHeader

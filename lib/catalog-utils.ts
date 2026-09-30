@@ -1,3 +1,4 @@
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { getStockStatus } from "@/lib/stock";
 import type {
   CatalogSummary,
@@ -219,11 +220,19 @@ export function validateProduct(
     }
   }
 
-  const threshold = Number(data.lowStockThreshold);
-  if (!data.lowStockThreshold.trim()) {
-    errors.lowStockThreshold = "Set a low-stock threshold.";
-  } else if (!Number.isInteger(threshold) || threshold < 0) {
-    errors.lowStockThreshold = "Threshold must be a whole number, zero or more.";
+  /**
+   * Only demanded when stock is counted. The form stops showing this
+   * field with counting off, and a required field nobody can see is a
+   * form that refuses to save and will not say why - the error lands on
+   * an input that is not on the page.
+   */
+  if (STOCK_TRACKING_ENABLED) {
+    const threshold = Number(data.lowStockThreshold);
+    if (!data.lowStockThreshold.trim()) {
+      errors.lowStockThreshold = "Set a low-stock threshold.";
+    } else if (!Number.isInteger(threshold) || threshold < 0) {
+      errors.lowStockThreshold = "Threshold must be a whole number, zero or more.";
+    }
   }
 
   return errors;

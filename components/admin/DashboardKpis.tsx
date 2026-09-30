@@ -10,6 +10,7 @@ import { useInventory } from "@/context/InventoryContext";
 import { getFinancialSummary, getRevenueEntries } from "@/lib/finance-utils";
 import { resolvePeriod } from "@/lib/date-range";
 import { useCatalog } from "@/context/CatalogContext";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { formatPrice } from "@/lib/utils";
 
 /**
@@ -94,13 +95,18 @@ export function DashboardKpis() {
         tone="cyan"
         description="Counter and online combined"
       />
-      <KpiCard
-        title="Total Stock Value"
-        value={formatPrice(stockValue)}
-        Icon={Warehouse}
-        tone="gold"
-        description="Stock on hand at current cost"
-      />
+      {/* Stock value needs a stock count. With counting off the figure
+          would be the sum of numbers nobody maintains, presented as
+          money - the most confident-looking wrong answer on the page. */}
+      {STOCK_TRACKING_ENABLED && (
+        <KpiCard
+          title="Total Stock Value"
+          value={formatPrice(stockValue)}
+          Icon={Warehouse}
+          tone="gold"
+          description="Stock on hand at current cost"
+        />
+      )}
     </div>
   );
 }

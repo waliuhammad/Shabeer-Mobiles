@@ -4,6 +4,7 @@ import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductImage } from "@/components/shared/ProductImage";
 import { getProductStockLevel, STOCK_LEVEL_STYLES, IN_STOCK_STYLE } from "@/lib/stock";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -36,10 +37,16 @@ export function POSProductCard({
   const level = getProductStockLevel(product);
   const style = level ? STOCK_LEVEL_STYLES[level] : IN_STOCK_STYLE;
 
-  const outOfStock = product.stock <= 0;
+  /**
+   * With counting off nothing can be out of stock or exhausted, so the
+   * Add button is never disabled. These stay computed rather than being
+   * ripped out, so the rules are intact the moment counting returns.
+   */
+  const outOfStock = STOCK_TRACKING_ENABLED && product.stock <= 0;
   // Everything on the shelf is already on the bill - adding more would
   // oversell, so the button stops here too.
-  const exhausted = !outOfStock && billedQuantity >= product.stock;
+  const exhausted =
+    STOCK_TRACKING_ENABLED && !outOfStock && billedQuantity >= product.stock;
   const disabled = outOfStock || exhausted;
 
   return (
@@ -70,17 +77,21 @@ export function POSProductCard({
             {formatPrice(product.price)}
           </span>
           {/* Status label always accompanies the colour. */}
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-              style.badgeClass
-            )}
-          >
-            {style.label}
-          </span>
-          <span className="text-[11px] tabular-nums text-muted-foreground">
-            {product.stock} {product.stock === 1 ? "unit" : "units"}
-          </span>
+          {STOCK_TRACKING_ENABLED && (
+            <>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                  style.badgeClass
+                )}
+              >
+                {style.label}
+              </span>
+              <span className="text-[11px] tabular-nums text-muted-foreground">
+                {product.stock} {product.stock === 1 ? "unit" : "units"}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { MessageSquare, Star } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/types";
@@ -23,7 +24,20 @@ export function ProductTabs({ product }: ProductTabsProps) {
     { label: "Category", value: product.categoryName },
     { label: "Condition", value: product.condition === "used" ? "Used" : "New" },
     { label: "Price", value: formatPrice(product.price) },
-    { label: "Availability", value: product.stock > 0 ? `${product.stock} in stock` : "Out of stock" },
+    /**
+     * Availability is only a specification if somebody is counting.
+     * With stock untracked this row said "6 in stock" from a figure
+     * nobody maintains - the most precise-looking claim on the page and
+     * the least true.
+     */
+    ...(STOCK_TRACKING_ENABLED
+      ? [
+          {
+            label: "Availability",
+            value: product.stock > 0 ? `${product.stock} in stock` : "Out of stock",
+          },
+        ]
+      : []),
     { label: "Product Code", value: product.id.toUpperCase() },
   ];
 

@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -16,6 +18,13 @@ export const metadata: Metadata = { title: "Inventory Transactions" };
  * ever creating a product whose id is literally "transactions".
  */
 export default function InventoryTransactionsPage() {
+  /**
+   * Hidden from the navigation is not the same as unreachable. With
+   * stock untracked these pages would still open from a bookmark or a
+   * pasted link and show counts nobody is keeping.
+   */
+  if (!STOCK_TRACKING_ENABLED) notFound();
+
   return (
     <>
       <Button asChild variant="outline" size="sm" className="mb-4 h-9 gap-1.5 text-xs">
