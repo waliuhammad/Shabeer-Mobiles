@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DashboardKpis } from "@/components/admin/DashboardKpis";
 import { SalesOverview } from "@/components/admin/SalesOverview";
-import { SalesChannel } from "@/components/admin/SalesChannel";
 import { LowStockTable } from "@/components/admin/LowStockTable";
 import { RecentSalesTable } from "@/components/admin/RecentSalesTable";
 
@@ -42,21 +41,20 @@ export default function AdminDashboardPage() {
       <DashboardKpis />
 
       {/*
-        Charts: the trend gets two thirds, the channel split one third.
+        Sales over time, now the full width.
 
-        min-w-0 on the grid children is load-bearing, not tidiness. A grid
-        item defaults to min-width:auto, meaning it will not shrink below
-        its content - and the chart's SVG has an intrinsic width. Without
-        this the chart pushed the whole dashboard wider than a phone
-        screen and every card got clipped.
+        It shared this row two-thirds/one-third with a Sales Channel
+        card until the shop asked for that card to go. Nothing takes
+        its third: a column left empty beside a table reads as
+        something failing to load, and the table is easier to scan
+        across the whole width anyway.
+
+        min-w-0 stays. A grid item defaults to min-width:auto, meaning
+        it will not shrink below its content, and that is what pushed
+        the dashboard wider than a phone screen once before.
       */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <SalesOverview />
-        </div>
-        <div className="min-w-0">
-          <SalesChannel />
-        </div>
+      <div className="mt-4 min-w-0">
+        <SalesOverview />
       </div>
 
       {/*
