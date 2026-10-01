@@ -8,6 +8,7 @@ import {
   productToPOSItem,
 } from "@/lib/pos-utils";
 import { COUNTER_SELLERS } from "@/lib/constants";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { WALK_IN_CUSTOMER_ID } from "@/types";
 import type {
   POSPaymentMethod,
@@ -83,19 +84,28 @@ function posReducer(state: POSState, action: POSAction): POSState {
   switch (action.type) {
     case "ADD_PRODUCT": {
       const { product } = action;
-      if (product.stock <= 0) return state;
+      // Nothing is out of stock when nothing is counted.
+      if (STOCK_TRACKING_ENABLED && product.stock <= 0) return state;
 
       const existing = state.items.find((i) => i.productId === product.id);
 
       if (existing) {
         // Already on the bill: bump the line, never add a second row.
         // Capped at stock so repeated clicking cannot oversell.
-        const nextQuantity = Math.min(existing.quantity + 1, product.stock);
+        const nextQuantity = STOCK_TRACKING_ENABLED
+          ? Math.min(existing.quantity + 1, product.stock)
+          : existing.quantity + 1;
         return {
           ...state,
           items: state.items.map((item) =>
             item.productId === product.id
-              ? { ...item, quantity: nextQuantity }
+              ? {
+                  ...item,
+                  quantity: nextQuantity,
+                  // Without counting, stock tracks quantity - see the
+                  // note in SET_QUANTITY for why it must.
+                  stock: STOCK_TRACKING_ENABLED ? item.stock : nextQuantity,
+                }
               : item
           ),
         };
@@ -142,7 +152,17 @@ function posReducer(state: POSState, action: POSAction): POSState {
            * satisfied without any of them needing to know about custom
            * lines.
            */
-          if (item.isCustom) return { ...item, quantity: wanted, stock: wanted };
+          /**
+           * Custom lines never had a ceiling; with counting off, nothing
+           * does. Keeping the cap would have left the till refusing to
+           * sell 30 of something the shelf records as 25 - a number
+           * nobody maintains - while the server happily accepts it. The
+           * stock figure travels with the quantity so every shared
+           * "quantity > stock" guard stays satisfied.
+           */
+          if (item.isCustom || !STOCK_TRACKING_ENABLED) {
+            return { ...item, quantity: wanted, stock: wanted };
+          }
           return { ...item, quantity: Math.min(wanted, item.stock) };
         }),
       };
