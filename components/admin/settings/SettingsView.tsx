@@ -1,5 +1,7 @@
 "use client";
 
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
+
 import { useState } from "react";
 import { toast } from "sonner";
 import { ONLINE_ORDERING_ENABLED } from "@/lib/feature-flags";
@@ -57,7 +59,12 @@ function SettingsForm() {
     }
     if (next.deliveryCharge < 0) found.deliveryCharge = "Cannot be negative.";
     if (next.freeDeliveryThreshold < 0) found.freeDeliveryThreshold = "Cannot be negative.";
-    if (!Number.isInteger(next.defaultLowStockThreshold) || next.defaultLowStockThreshold < 0) {
+    // Only demanded while the field is on screen - a required value
+    // behind a hidden input is a form that refuses to save in silence.
+    if (
+      STOCK_TRACKING_ENABLED &&
+      (!Number.isInteger(next.defaultLowStockThreshold) || next.defaultLowStockThreshold < 0)
+    ) {
       found.defaultLowStockThreshold = "Must be a whole number, zero or more.";
     }
     return found;
@@ -232,8 +239,11 @@ function SettingsForm() {
               onChange={num("freeDeliveryThreshold")} error={errors.freeDeliveryThreshold} placeholder="0 to disable" />
           </>
         )}
-        <FormField label="Default Low-Stock Threshold" type="number" value={String(data.defaultLowStockThreshold)}
-          onChange={num("defaultLowStockThreshold")} error={errors.defaultLowStockThreshold} placeholder="5" />
+        {/* Nothing to threshold while stock is untracked. */}
+        {STOCK_TRACKING_ENABLED && (
+          <FormField label="Default Low-Stock Threshold" type="number" value={String(data.defaultLowStockThreshold)}
+            onChange={num("defaultLowStockThreshold")} error={errors.defaultLowStockThreshold} placeholder="5" />
+        )}
         <FormField label="Receipt Footer" value={data.receiptFooter}
           onChange={(v) => set("receiptFooter", v)}
           placeholder="Thank you for shopping at Shabbir Mobiles."

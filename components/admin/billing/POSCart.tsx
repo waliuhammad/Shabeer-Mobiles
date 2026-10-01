@@ -1,6 +1,7 @@
 "use client";
 
 import { Minus, Plus, Trash2, ShoppingCart, AlertCircle } from "lucide-react";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { formatPrice, cn } from "@/lib/utils";
 import type { POSCartItem } from "@/types";
 
@@ -141,7 +142,8 @@ function QuantityStepper({
    * quantity so the shared "quantity > stock" guards stay satisfied,
    * which would otherwise pin this button disabled for ever.
    */
-  const atMax = !item.isCustom && item.quantity >= item.stock;
+  const atMax =
+    STOCK_TRACKING_ENABLED && !item.isCustom && item.quantity >= item.stock;
 
   return (
     <div className="mx-auto inline-flex items-center rounded-lg border border-border bg-background">
@@ -200,7 +202,7 @@ function RemoveButton({
 function QuantityWarning({ item }: { item: POSCartItem }) {
   // Nothing on a shelf to run out of - and with stock tracking quantity
   // this test is true on every custom line, so it must come first.
-  if (item.isCustom) return null;
+  if (item.isCustom || !STOCK_TRACKING_ENABLED) return null;
   if (item.quantity < item.stock) return null;
 
   return (

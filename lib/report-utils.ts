@@ -1,3 +1,4 @@
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 /**
  * Report building and CSV export.
  *
@@ -43,12 +44,26 @@ export const REPORTS: ReportMeta[] = [
     description: "Operating expenses by category. Cancelled rows are excluded.",
     periodic: true,
   },
-  {
-    id: "inventory",
-    title: "Inventory Report",
-    description: "Stock on hand, valued at current cost. A snapshot, not a period.",
-    periodic: false,
-  },
+  /**
+   * The inventory report, when stock is counted. Spread rather than
+   * listed so that with counting off it is absent from the array
+   * entirely - the page builds its buttons AND its default selection
+   * from REPORTS, so a merely hidden entry would still be selectable.
+   *
+   * It would otherwise export "Stock", "Stock Value" and a Reorder flag
+   * as a CSV, which is exactly the shape of file somebody forwards to
+   * an accountant without checking where the numbers came from.
+   */
+  ...(STOCK_TRACKING_ENABLED
+    ? [
+        {
+          id: "inventory" as const,
+          title: "Inventory Report",
+          description: "Stock on hand, valued at current cost. A snapshot, not a period.",
+          periodic: false,
+        },
+      ]
+    : []),
   {
     id: "purchases",
     title: "Purchase Report",

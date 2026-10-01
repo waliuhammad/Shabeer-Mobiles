@@ -14,6 +14,7 @@ import {
   PRODUCT_CONDITION_CONFIG, PRODUCT_STATUS_CONFIG, currentMargin,
 } from "@/lib/catalog-utils";
 import { getStockStatus } from "@/lib/stock";
+import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { formatOrderDate } from "@/lib/order-utils";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product } from "@/types";
@@ -135,6 +136,14 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
             </p>
           </div>
 
+          {/*
+            THE STOCK CARD, only when stock is counted.
+
+            Its "Adjust stock" button linked to /admin/inventory/<id>,
+            which now 404s, so with counting off this was a card showing
+            a number nobody maintains above a button that went nowhere.
+          */}
+          {STOCK_TRACKING_ENABLED && (
           <div className="rounded-xl border border-border bg-card p-5">
             <p className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground">
               <Warehouse className="size-3.5" aria-hidden="true" />Stock
@@ -154,6 +163,7 @@ export function ProductDetailView({ productId }: ProductDetailViewProps) {
               <Link href={`/admin/inventory/${product.id}`}>Adjust stock</Link>
             </Button>
           </div>
+          )}
         </div>
 
         {/* ---------------- DETAILS ---------------- */}

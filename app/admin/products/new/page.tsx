@@ -10,7 +10,7 @@ export default function NewProductPage() {
     <>
       <AdminPageHeader
         title="Add Product"
-        description="Create a product. It starts as a draft until you give it stock and set it active."
+        description="Create a product. It starts as a draft until you set it active."
       />
       <ProductForm />
     </>
