@@ -16,7 +16,7 @@ import { KpiCard } from "@/components/admin/KpiCard";
 import { useCatalog } from "@/context/CatalogContext";
 import { useInventory } from "@/context/InventoryContext";
 import {
-  EMPTY_PRODUCT_FILTERS, PRODUCT_CONDITIONS, PRODUCT_CONDITION_CONFIG,
+  EMPTY_PRODUCT_FILTERS, PRODUCT_CONDITION_CONFIG,
   PRODUCT_STATUSES, PRODUCT_STATUS_CONFIG,
   calculateCatalogSummary, filterProducts, hasActiveProductFilters,
 } from "@/lib/catalog-utils";
@@ -152,26 +152,18 @@ export function ProductsView() {
           </SelectContent>
         </Select>
 
-        <Select value={filters.condition} onValueChange={(v) => set("condition", v as ProductFilterState["condition"])}>
-          <SelectTrigger className="h-10 sm:w-36" aria-label="Filter by condition">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">New &amp; Used</SelectItem>
-            {PRODUCT_CONDITIONS.map((c) => (
-              <SelectItem key={c} value={c}>{PRODUCT_CONDITION_CONFIG[c].label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/*
+          NO CONDITION FILTER. The shop sells new goods only - the three
+          used handsets were deleted - so "New & Used" offered a choice
+          between everything and nothing. The filter STATE survives in
+          ProductFilterState and filterProducts() still honours it, so
+          this comes back as a control the day used stock does.
 
-        <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground">
-          <input
-            type="checkbox" checked={filters.lowStockOnly}
-            onChange={(e) => set("lowStockOnly", e.target.checked)}
-            className="size-4 accent-[var(--secondary)]"
-          />
-          Needs restocking
-        </label>
+          NO "NEEDS RESTOCKING" EITHER. It filters on a count nobody
+          keeps; with stock untracked it would always return an empty
+          list, which reads as "no products" rather than as "this
+          question has no answer here".
+        */}
 
         {hasActiveProductFilters(filters) && (
           <Button type="button" variant="outline" onClick={() => setFilters(EMPTY_PRODUCT_FILTERS)} className="h-10 px-4 text-sm">
@@ -206,7 +198,9 @@ export function ProductsView() {
                   <th scope="col" className="px-3 py-2.5 font-medium">Category</th>
                   <th scope="col" className="px-3 py-2.5 text-right font-medium">Price</th>
                   <th scope="col" className="px-3 py-2.5 text-right font-medium">Cost</th>
-                  <th scope="col" className="px-3 py-2.5 text-right font-medium">Stock</th>
+                  {STOCK_TRACKING_ENABLED && (
+                    <th scope="col" className="px-3 py-2.5 text-right font-medium">Stock</th>
+                  )}
                   <th scope="col" className="px-3 py-2.5 font-medium">Condition</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
                   <th scope="col" className="px-4 py-2.5 text-right font-medium">Actions</th>
@@ -235,19 +229,24 @@ export function ProductsView() {
                       <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-muted-foreground">
                         {getCost(p.id) > 0 ? formatPrice(getCost(p.id)) : "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right">
-                        <Link
-                          href={`/admin/inventory/${p.id}`}
-                          className={cn(
-                            "tabular-nums hover:underline",
-                            level === "out-of-stock" ? "font-semibold text-destructive"
-                              : level === "low-stock" ? "font-semibold text-gold-deep"
-                              : "text-foreground"
-                          )}
-                        >
-                          {stock}
-                        </Link>
-                      </td>
+                      {/* Gone with counting - and note it linked to
+                          /admin/inventory, which now 404s, so leaving it
+                          would have been a column of dead links. */}
+                      {STOCK_TRACKING_ENABLED && (
+                        <td className="whitespace-nowrap px-3 py-3 text-right">
+                          <Link
+                            href={`/admin/inventory/${p.id}`}
+                            className={cn(
+                              "tabular-nums hover:underline",
+                              level === "out-of-stock" ? "font-semibold text-destructive"
+                                : level === "low-stock" ? "font-semibold text-gold-deep"
+                                : "text-foreground"
+                            )}
+                          >
+                            {stock}
+                          </Link>
+                        </td>
+                      )}
                       <td className="px-3 py-3">
                         <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold", condition.badgeClass)}>
                           {condition.label}
@@ -306,13 +305,17 @@ export function ProductsView() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className={cn(
-                      level === "out-of-stock" ? "font-semibold text-destructive"
-                        : level === "low-stock" ? "font-semibold text-gold-deep"
-                        : "text-muted-foreground"
-                    )}>
-                      {stock} in stock
-                    </span>
+                    {STOCK_TRACKING_ENABLED ? (
+                      <span className={cn(
+                        level === "out-of-stock" ? "font-semibold text-destructive"
+                          : level === "low-stock" ? "font-semibold text-gold-deep"
+                          : "text-muted-foreground"
+                      )}>
+                        {stock} in stock
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">{p.categoryName}</span>
+                    )}
                     <span className="font-heading text-base font-bold tabular-nums text-primary">
                       {formatPrice(p.price)}
                     </span>
@@ -333,8 +336,13 @@ export function ProductsView() {
       )}
 
       <p className="mt-3 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
-        Stock is not editable here. It belongs to the inventory ledger, where every
-        change records who made it and why - click a stock number to adjust it there.
+        {STOCK_TRACKING_ENABLED && (
+          <>
+            Stock is not editable here. It belongs to the inventory ledger, where
+            every change records who made it and why - click a stock number to
+            adjust it there.{" "}
+          </>
+        )}
         Cost is admin-only and never reaches a cashier screen or the storefront.
       </p>
     </>

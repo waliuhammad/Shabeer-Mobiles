@@ -284,12 +284,30 @@ export function RevenueView() {
               </thead>
               <tbody className="divide-y divide-border">
                 {visible.map((e) => (
-                  <tr key={e.reference} className="transition-colors hover:bg-muted/40">
+                  /**
+                   * THE WHOLE ROW OPENS THE SALE, via the stretched-link
+                   * trick: the row is the positioning context and the
+                   * reference link grows an ::after that covers it.
+                   *
+                   * One real anchor, not a row-level onClick. A click
+                   * handler would not be reachable by keyboard, would not
+                   * middle-click into a new tab, and would not show the
+                   * destination on hover. The link was 89x16px before -
+                   * findable only if you aimed at the invoice number.
+                   *
+                   * Anything else in the row that must stay clickable -
+                   * the customer link below - is lifted above the overlay
+                   * with `relative z-10`.
+                   */
+                  <tr
+                    key={e.reference}
+                    className="relative transition-colors hover:bg-muted/40"
+                  >
                     <th scope="row" className="px-4 py-3 text-left">
                       {e.href ? (
                         <Link
                           href={e.href}
-                          className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-primary hover:text-secondary"
+                          className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-primary after:absolute after:inset-0 after:content-[''] hover:text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
                         >
                           {e.reference}
                           <ArrowUpRight className="size-3" aria-hidden="true" />
@@ -307,7 +325,9 @@ export function RevenueView() {
                       {e.customerId ? (
                         <Link
                           href={`/admin/customers/${e.customerId}`}
-                          className="hover:text-secondary"
+                          // Above the row-wide overlay, or the customer
+                          // link would be unreachable.
+                          className="relative z-10 hover:text-secondary"
                         >
                           {e.customerName}
                         </Link>
@@ -365,11 +385,20 @@ export function RevenueView() {
           {/* below lg: cards */}
           <ul className="divide-y divide-border lg:hidden">
             {visible.map((e) => (
-              <li key={e.reference} className="space-y-2.5 p-4">
+              <li key={e.reference} className="relative space-y-2.5 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-mono text-xs font-semibold text-primary">
-                      {e.reference}
+                      {e.href ? (
+                        <Link
+                          href={e.href}
+                          className="after:absolute after:inset-0 after:content-['']"
+                        >
+                          {e.reference}
+                        </Link>
+                      ) : (
+                        e.reference
+                      )}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {e.customerName} · {SALES_CHANNEL_LABELS[e.channel]}

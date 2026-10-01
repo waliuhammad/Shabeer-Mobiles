@@ -112,11 +112,17 @@ export function RecentSalesTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
+            {/* The whole row opens the sale - stretched link, same as the
+                revenue table. See the note there for why this is an anchor
+                with an ::after rather than a row onClick. */}
             {recentSales.map((sale) => (
-              <tr key={sale.reference} className="transition-colors hover:bg-muted/40">
+              <tr key={sale.reference} className="relative transition-colors hover:bg-muted/40">
                 <th scope="row" className="px-5 py-3 text-left font-semibold text-primary">
                   {sale.href ? (
-                    <Link href={sale.href} className="hover:text-secondary hover:underline">
+                    <Link
+                      href={sale.href}
+                      className="after:absolute after:inset-0 after:content-[''] hover:text-secondary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
+                    >
                       #{sale.reference}
                     </Link>
                   ) : (
@@ -150,12 +156,15 @@ export function RecentSalesTable() {
       {/* ---------- below md: stacked cards ---------- */}
       <ul className="divide-y divide-border lg:hidden">
         {recentSales.map((sale) => (
-          <li key={sale.reference} className="space-y-2 px-4 py-3.5">
+          <li key={sale.reference} className="relative space-y-2 px-4 py-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold text-primary">
                   {sale.href ? (
-                    <Link href={sale.href} className="hover:text-secondary hover:underline">
+                    <Link
+                      href={sale.href}
+                      className="after:absolute after:inset-0 after:content-[''] hover:text-secondary hover:underline"
+                    >
                       #{sale.reference}
                     </Link>
                   ) : (
