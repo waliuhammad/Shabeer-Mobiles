@@ -14,6 +14,7 @@ export * from "./order";
 export * from "./admin";
 export * from "./pos";
 export * from "./inventory";
+export * from "./owner";
 export * from "./supplier";
 export * from "./purchase";
 export * from "./customer";

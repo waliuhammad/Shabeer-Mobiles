@@ -10,6 +10,7 @@ import { PurchasingProvider } from "@/context/PurchasingContext";
 import { CustomersProvider } from "@/context/CustomersContext";
 import { InvoicesProvider } from "@/context/InvoicesContext";
 import { ExpensesProvider } from "@/context/ExpensesContext";
+import { OwnersProvider } from "@/context/OwnersContext";
 
 export const metadata: Metadata = {
   title: {
@@ -86,6 +87,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <CustomersProvider>
             <InvoicesProvider>
               <ExpensesProvider>
+              <OwnersProvider>
             <div className="flex min-h-dvh bg-muted/40">
         {/* Fixed sidebar, desktop only. The mobile equivalent is the
             drawer inside AdminTopbar. */}
@@ -100,6 +102,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <main className="min-w-0 flex-1 p-4 sm:p-5 lg:p-6">{children}</main>
         </div>
             </div>
+              </OwnersProvider>
               </ExpensesProvider>
             </InvoicesProvider>
           </CustomersProvider>

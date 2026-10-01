@@ -222,6 +222,19 @@ service cloud.firestore {
       allow write: if isOwnerOrManager();
     }
 
+    /**
+     * Owners and stakeholders. Personal phone numbers and the share
+     * each person holds in the business - nobody's business at the
+     * till, so a cashier cannot read them.
+     *
+     * Being listed here grants NOTHING. Access is a custom claim; this
+     * is a contact record.
+     */
+    match /owners/{ownerId} {
+      allow read: if isOwnerOrManager();
+      allow write: if isOwnerOrManager();
+    }
+
     match /purchases/{purchaseId} {
       allow read: if isOwnerOrManager();
       // Receiving a purchase moves stock. That should eventually be one

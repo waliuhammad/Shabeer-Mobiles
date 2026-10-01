@@ -12,6 +12,7 @@ import {
   Warehouse,
   Truck,
   Users,
+  Handshake,
   UserRound,
   Receipt,
   Banknote,
@@ -162,6 +163,14 @@ export const adminNavSections: AdminNavSection[] = [
       ...(STAFF_DIRECTORY_ENABLED
         ? [{ label: "Users / Staff", href: "/admin/users", icon: UserCog, roles: OWNER_ONLY }]
         : []),
+      /**
+       * Owners and stakeholders. OWNER_MANAGER, not ALL: these records
+       * carry personal phone numbers and the share each person holds,
+       * which is the same line drawn around suppliers and costs.
+       *
+       * Note it grants nothing - see context/OwnersContext.tsx.
+       */
+      { label: "Owners", href: "/admin/owners", icon: Handshake, roles: OWNER_MANAGER },
       { label: "Settings", href: "/admin/settings", icon: Settings, roles: OWNER_ONLY },
     ],
   },
