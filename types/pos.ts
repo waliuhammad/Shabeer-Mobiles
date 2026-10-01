@@ -170,6 +170,18 @@ export interface Invoice {
   createdAt: string;
   /** Who rang it up. A placeholder until staff accounts exist. */
   cashierName: string;
+  /**
+   * Which owner actually served the customer.
+   *
+   * SEPARATE FROM cashierName, which stays the signed-in account. The
+   * two owners share a login, so the account says who was signed in and
+   * this says who made the sale - overwriting one with the other would
+   * trade an audit trail for a business fact when both are wanted.
+   *
+   * Optional because invoices written before this existed have no
+   * answer, and inventing one for them would be worse than showing none.
+   */
+  soldBy?: string;
 }
 
 export interface InvoiceLine {

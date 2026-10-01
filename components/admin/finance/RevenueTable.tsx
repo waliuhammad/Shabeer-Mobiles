@@ -97,8 +97,14 @@ export function RevenueTable({
             reads as a table that failed to finish drawing.
 
             So the table stays full width and a sixth, empty column
-            absorbs the slack. The real columns size to their content
-            and sit together; the grey bands still span the card.
+            absorbs the slack. The real columns size to their content;
+            the grey bands still span the card.
+
+            The padding below is what sets the gaps between them, and it
+            is deliberately generous - sized to content alone they
+            crowded into the left corner, which is as hard to read as
+            being stretched across the whole card, just in the other
+            direction.
             `role="presentation"` keeps the spacer out of the row and
             column counts a screen reader announces.
           */}
@@ -109,19 +115,19 @@ export function RevenueTable({
             </caption>
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">
+                <th scope="col" className="whitespace-nowrap px-5 py-2.5 font-medium">
                   {unitLabel === "month" ? "Month" : "Date"}
                 </th>
-                <th scope="col" className="whitespace-nowrap px-2.5 py-2.5 text-right font-medium">
+                <th scope="col" className="whitespace-nowrap px-6 py-2.5 text-right font-medium">
                   Sales
                 </th>
-                <th scope="col" className="whitespace-nowrap px-2.5 py-2.5 text-right font-medium">
+                <th scope="col" className="whitespace-nowrap px-6 py-2.5 text-right font-medium">
                   Revenue
                 </th>
-                <th scope="col" className="whitespace-nowrap px-2.5 py-2.5 text-right font-medium">
+                <th scope="col" className="whitespace-nowrap px-6 py-2.5 text-right font-medium">
                   Gross Profit
                 </th>
-                <th scope="col" className="whitespace-nowrap px-2.5 py-2.5 text-right font-medium">
+                <th scope="col" className="whitespace-nowrap px-6 py-2.5 text-right font-medium">
                   Margin
                 </th>
                 <th role="presentation" className="w-full p-0" />
@@ -141,16 +147,16 @@ export function RevenueTable({
                   >
                     <th
                       scope="row"
-                      className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-medium"
+                      className="whitespace-nowrap px-5 py-2.5 text-left text-xs font-medium"
                     >
                       {p.label}
                     </th>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums">
+                    <td className="whitespace-nowrap px-6 py-2.5 text-right tabular-nums">
                       {p.saleCount === 0 ? "-" : p.saleCount}
                     </td>
                     <td
                       className={cn(
-                        "whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums",
+                        "whitespace-nowrap px-6 py-2.5 text-right tabular-nums",
                         quiet ? "" : "font-semibold text-foreground"
                       )}
                     >
@@ -158,7 +164,7 @@ export function RevenueTable({
                     </td>
                     <td
                       className={cn(
-                        "whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums",
+                        "whitespace-nowrap px-6 py-2.5 text-right tabular-nums",
                         // A loss is worth seeing at a glance; it happens
                         // when a sale went out below what it cost.
                         !quiet && p.grossProfit < 0 && "font-semibold text-destructive"
@@ -166,7 +172,7 @@ export function RevenueTable({
                     >
                       {formatPrice(p.grossProfit)}
                     </td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 text-right tabular-nums text-muted-foreground">
+                    <td className="whitespace-nowrap px-6 py-2.5 text-right tabular-nums text-muted-foreground">
                       {formatMargin(margin(p.revenue, p.grossProfit))}
                     </td>
                     <td role="presentation" className="p-0" />
@@ -177,24 +183,24 @@ export function RevenueTable({
 
             <tfoot className="sticky bottom-0">
               <tr className="border-t-2 border-border bg-muted text-sm">
-                <th scope="row" className="px-3 py-3 text-left font-semibold text-foreground">
+                <th scope="row" className="px-5 py-3 text-left font-semibold text-foreground">
                   Total
                 </th>
-                <td className="whitespace-nowrap px-2.5 py-3 text-right font-semibold tabular-nums text-foreground">
+                <td className="whitespace-nowrap px-6 py-3 text-right font-semibold tabular-nums text-foreground">
                   {totals.saleCount}
                 </td>
-                <td className="whitespace-nowrap px-2.5 py-3 text-right font-heading font-bold tabular-nums text-foreground">
+                <td className="whitespace-nowrap px-6 py-3 text-right font-heading font-bold tabular-nums text-foreground">
                   {formatPrice(totals.revenue)}
                 </td>
                 <td
                   className={cn(
-                    "whitespace-nowrap px-2.5 py-3 text-right font-heading font-bold tabular-nums",
+                    "whitespace-nowrap px-6 py-3 text-right font-heading font-bold tabular-nums",
                     totals.grossProfit < 0 ? "text-destructive" : "text-foreground"
                   )}
                 >
                   {formatPrice(totals.grossProfit)}
                 </td>
-                <td className="whitespace-nowrap px-2.5 py-3 text-right font-semibold tabular-nums text-foreground">
+                <td className="whitespace-nowrap px-6 py-3 text-right font-semibold tabular-nums text-foreground">
                   {formatMargin(margin(totals.revenue, totals.grossProfit))}
                 </td>
                 <td role="presentation" className="p-0" />

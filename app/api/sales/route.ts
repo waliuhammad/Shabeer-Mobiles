@@ -4,6 +4,7 @@ import { isAdminConfigured } from "@/lib/firebase/admin";
 import { getAdminDb } from "@/lib/firebase/admin-db";
 import { verifySession } from "@/lib/auth/dal";
 import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
+import { COUNTER_SELLERS } from "@/lib/constants";
 import type { Invoice, InvoiceLine, POSPaymentMethod } from "@/types";
 
 /**
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
     discount?: unknown;
     paidAmount?: unknown;
     paymentMethod?: unknown;
+    soldBy?: unknown;
   };
   try {
     body = await request.json();
@@ -174,6 +176,19 @@ export async function POST(request: Request) {
   )
     ? body.paymentMethod
     : "cash") as POSPaymentMethod;
+
+  /**
+   * WHO SERVED THE CUSTOMER, checked against the known list.
+   *
+   * Not free text. A name typed differently each time - "jawad",
+   * "Jawad R", "J. Raza" - cannot be totalled by seller afterwards, and
+   * this field exists precisely so it can be. An unrecognised value is
+   * dropped rather than rejected: it is a label on the sale, and
+   * refusing a real customer's bill over it would be the wrong trade.
+   */
+  const soldBy = (COUNTER_SELLERS as readonly string[]).includes(String(body.soldBy))
+    ? String(body.soldBy)
+    : undefined;
 
   const db = getAdminDb();
 
@@ -314,7 +329,12 @@ export async function POST(request: Request) {
         paymentMethod,
         paymentStatus,
         createdAt,
+        // The ACCOUNT that was signed in. Kept separate from soldBy:
+        // the two owners share a login, so this is the audit trail and
+        // that is the business fact. Overwriting one with the other
+        // would trade away whichever was not chosen.
         cashierName: user.displayName ?? user.email ?? "Staff",
+        ...(soldBy ? { soldBy } : {}),
       };
 
       // ---- writes ----

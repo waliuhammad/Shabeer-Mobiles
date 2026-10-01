@@ -149,9 +149,19 @@ export function InvoiceDetailView({ invoiceNumber }: InvoiceDetailViewProps) {
             )}
           </Fact>
           <Fact Icon={Store} label="Sold by">
-            {invoice.cashierName}
+            {/*
+              The OWNER who served, falling back to the account for
+              invoices written before the field existed - inventing a
+              name for those would be worse than showing the account.
+              The account is shown underneath either way: the two owners
+              share a sign-in, so it is the audit trail and `soldBy` is
+              the business fact.
+            */}
+            {invoice.soldBy ?? invoice.cashierName}
             <span className="block text-xs font-normal text-muted-foreground">
-              At the counter
+              {invoice.soldBy
+                ? `At the counter · signed in as ${invoice.cashierName}`
+                : "At the counter"}
             </span>
           </Fact>
           <Fact Icon={Receipt} label="Payment">

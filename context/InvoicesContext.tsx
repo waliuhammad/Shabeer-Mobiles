@@ -100,6 +100,10 @@ function mapInvoice(doc: QueryDocumentSnapshot): Invoice | null {
     paymentStatus: status,
     createdAt: typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
     cashierName: typeof d.cashierName === "string" ? d.cashierName : "",
+    // Added to the mapper at the same time as the field. A field written
+    // by the server and not listed here comes back undefined - which is
+    // exactly how isCustom silently vanished once already.
+    soldBy: typeof d.soldBy === "string" ? d.soldBy : undefined,
   };
 }
 

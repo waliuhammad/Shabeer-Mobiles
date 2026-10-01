@@ -7,6 +7,7 @@ import {
   formatInvoiceNumber,
   productToPOSItem,
 } from "@/lib/pos-utils";
+import { COUNTER_SELLERS } from "@/lib/constants";
 import { WALK_IN_CUSTOMER_ID } from "@/types";
 import type {
   POSPaymentMethod,
@@ -35,6 +36,8 @@ interface POSState {
   /** Likewise - raw input, so we can tell them it is too high. */
   paidAmount: number;
   paymentMethod: POSPaymentMethod;
+  /** Which owner is serving. Printed on the receipt and stored. */
+  soldBy: string;
 }
 
 /** What the off-catalogue form collects. */
@@ -54,6 +57,7 @@ type POSAction =
   | { type: "SET_DISCOUNT"; discount: number }
   | { type: "SET_PAID"; paidAmount: number }
   | { type: "SET_PAYMENT_METHOD"; method: POSPaymentMethod }
+  | { type: "SET_SOLD_BY"; soldBy: string }
   | { type: "RESET"; invoiceNumber: string };
 
 function createInitialState(invoiceNumber: string): POSState {
@@ -64,6 +68,14 @@ function createInitialState(invoiceNumber: string): POSState {
     discount: 0,
     paidAmount: 0,
     paymentMethod: "cash",
+    /**
+     * Defaults to the first owner rather than to nobody. A required
+     * field left blank is a bill that cannot be saved until somebody
+     * notices why, on a till where the common case is one person
+     * working a shift - and the wrong default is one click to correct,
+     * where a blank one is a dead end mid-sale.
+     */
+    soldBy: COUNTER_SELLERS[0],
   };
 }
 
@@ -154,6 +166,9 @@ function posReducer(state: POSState, action: POSAction): POSState {
     case "SET_PAYMENT_METHOD":
       return { ...state, paymentMethod: action.method };
 
+    case "SET_SOLD_BY":
+      return { ...state, soldBy: action.soldBy };
+
     case "RESET":
       return createInitialState(action.invoiceNumber);
 
@@ -235,6 +250,11 @@ export function usePOS(startingSequence: number) {
     []
   );
 
+  const setSoldBy = useCallback(
+    (soldBy: string) => dispatch({ type: "SET_SOLD_BY", soldBy }),
+    []
+  );
+
   const setPaymentMethod = useCallback(
     (method: POSPaymentMethod) =>
       dispatch({ type: "SET_PAYMENT_METHOD", method }),
@@ -267,6 +287,7 @@ export function usePOS(startingSequence: number) {
     setDiscount,
     setPaidAmount,
     setPaymentMethod,
+    setSoldBy,
     startNewBill,
     getBilledQuantity,
   };

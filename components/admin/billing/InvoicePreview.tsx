@@ -107,7 +107,10 @@ export function InvoicePreview({
                   minute: "2-digit",
                 })}
               />
-              <Meta label="Cashier" value={invoice.cashierName} />
+              {/* The owner who served, not the account - this is the
+                  customer's receipt, and "Verify Bot" means nothing to
+                  them. Falls back for invoices predating the field. */}
+              <Meta label="Served by" value={invoice.soldBy ?? invoice.cashierName} />
             </dl>
 
             <dl className="space-y-1 text-xs sm:text-right">

@@ -202,3 +202,22 @@ export const FOOTER_SERVICE_LINKS: NavLink[] = [
   { label: "Software Solutions", href: "/#services" },
   { label: "Screen Replacement", href: "/#services" },
 ];
+
+/**
+ * WHO SERVED THE CUSTOMER.
+ *
+ * The shop is run by two owners - an uncle and his nephew - who share
+ * the counter and, in practice, the same admin sign-in. So the signed-in
+ * account cannot answer "who sold this", and before this list existed
+ * every invoice was simply stamped with whichever account was open.
+ *
+ * Kept as a list rather than free text so a receipt cannot end up
+ * saying "jawad", "Jawad R" and "J. Raza" for the same person, which
+ * makes the figures impossible to total by seller later. The server
+ * checks the name it is sent against this exact list.
+ *
+ * Adding or renaming an owner is this array, and nothing else.
+ */
+export const COUNTER_SELLERS = ["Jawad Raza", "Shahryar Mughal"] as const;
+
+export type CounterSeller = (typeof COUNTER_SELLERS)[number];

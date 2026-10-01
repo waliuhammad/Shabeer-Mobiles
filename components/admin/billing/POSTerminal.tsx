@@ -18,6 +18,14 @@ import {
 import { POSProductSearch } from "@/components/admin/billing/POSProductSearch";
 import { POSCustomItemDialog } from "@/components/admin/billing/POSCustomItemDialog";
 import { POSCart } from "@/components/admin/billing/POSCart";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { COUNTER_SELLERS } from "@/lib/constants";
 import { POSCustomerPanel } from "@/components/admin/billing/POSCustomerPanel";
 import { POSSummary } from "@/components/admin/billing/POSSummary";
 import { InvoicePreview } from "@/components/admin/billing/InvoicePreview";
@@ -128,6 +136,7 @@ export function POSTerminal() {
           discount: pos.discount,
           paidAmount: pos.paidAmount,
           paymentMethod: pos.paymentMethod,
+          soldBy: pos.soldBy,
         }),
       });
 
@@ -243,6 +252,34 @@ export function POSTerminal() {
             </div>
 
             <POSCustomerPanel customerId={pos.customerId} onChange={pos.setCustomer} />
+
+            {/*
+              WHO SERVED THE CUSTOMER. The two owners share a sign-in, so
+              the account cannot answer this and every invoice used to be
+              stamped with whichever login was open. Sits beside the
+              customer because they are the two facts about this sale
+              that are not money.
+            */}
+            <div className="mt-3">
+              <label
+                htmlFor="pos-sold-by"
+                className="mb-1 block text-xs font-medium text-muted-foreground"
+              >
+                Sold by
+              </label>
+              <Select value={pos.soldBy} onValueChange={pos.setSoldBy}>
+                <SelectTrigger id="pos-sold-by" className="h-10 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTER_SELLERS.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Lines. Bounded so a 20-line bill does not push the totals
@@ -296,8 +333,14 @@ export function POSTerminal() {
                 className="mt-px size-3 shrink-0 text-warning"
                 aria-hidden="true"
               />
-              Demo mode: saving produces an invoice but does not record a sale
-              or change stock.
+              {/* This used to say "Demo mode: saving produces an invoice
+                  but does not record a sale or change stock." Both halves
+                  stopped being true - the sale goes through /api/sales and
+                  is what Revenue and Profit & Loss read - and a till that
+                  tells its operator the sale was not recorded is a till
+                  whose figures nobody trusts. */}
+              Saving records the sale. It appears in Revenue and Profit &amp;
+              Loss straight away, and the invoice can be reopened later.
             </p>
           </div>
         </section>
