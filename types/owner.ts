@@ -134,6 +134,16 @@ export interface OwnerPayment {
   periodMonth: string;
   notes: string;
   /**
+   * WHICH OWNER handed the money over.
+   *
+   * The same question "Sold by" answers on the till, and for the same
+   * reason: the two owners share a sign-in, so the account cannot say
+   * which of them paid the landlord this month. Optional, because
+   * entries written before this existed have no answer and inventing
+   * one would be worse than showing none.
+   */
+  paidBy?: string;
+  /**
    * The Expense this created, for rent and maintenance.
    *
    * Stored so the two can never be counted twice and so the link is
@@ -150,4 +160,5 @@ export interface OwnerPaymentFormData {
   paidOn: string;
   periodMonth: string;
   notes: string;
+  paidBy: string;
 }

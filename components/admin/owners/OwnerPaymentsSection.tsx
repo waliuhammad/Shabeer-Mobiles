@@ -30,6 +30,7 @@ import {
   totalOfKind,
   validateOwnerPayment,
 } from "@/lib/owner-utils";
+import { COUNTER_SELLERS } from "@/lib/constants";
 import { toDateInputValue } from "@/lib/date-range";
 import { now } from "@/lib/demo-clock";
 import { formatOrderDateTime } from "@/lib/order-display";
@@ -106,6 +107,7 @@ export function OwnerPaymentsSection({ ownerId }: { ownerId: string }) {
                 <th scope="col" className="whitespace-nowrap px-5 py-2.5 font-medium">Date</th>
                 <th scope="col" className="whitespace-nowrap px-5 py-2.5 font-medium">What</th>
                 <th scope="col" className="whitespace-nowrap px-5 py-2.5 font-medium">Covers</th>
+                <th scope="col" className="whitespace-nowrap px-5 py-2.5 font-medium">Paid by</th>
                 <th scope="col" className="whitespace-nowrap px-5 py-2.5 text-right font-medium">Amount</th>
                 <th role="presentation" className="w-full p-0" />
               </tr>
@@ -137,6 +139,9 @@ export function OwnerPaymentsSection({ ownerId }: { ownerId: string }) {
                   </td>
                   <td className="whitespace-nowrap px-5 py-2.5 text-xs text-muted-foreground">
                     {p.periodMonth || "-"}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-2.5 text-xs text-muted-foreground">
+                    {p.paidBy || "-"}
                   </td>
                   <td
                     className={cn(
@@ -196,6 +201,10 @@ const EMPTY: OwnerPaymentFormData = {
   paidOn: "",
   periodMonth: "",
   notes: "",
+  // Pre-selected rather than blank, like "Sold by" on the till: one
+  // click corrects a wrong default, where an empty required box is a
+  // dead end halfway through recording a payment.
+  paidBy: COUNTER_SELLERS[0],
 };
 
 function RecordPaymentDialog({
@@ -334,6 +343,28 @@ function RecordPaymentDialog({
           )}
 
           <div>
+            <label htmlFor="op-paid-by" className="mb-1 block text-xs font-medium text-foreground">
+              Paid by
+            </label>
+            <Select value={data.paidBy} onValueChange={(v) => set("paidBy", v)}>
+              <SelectTrigger id="op-paid-by" className="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTER_SELLERS.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Which owner handed the money over. The two share a sign-in, so
+              the account cannot answer this.
+            </p>
+          </div>
+
+          <div>
             <label htmlFor="op-notes" className="mb-1 block text-xs font-medium text-foreground">
               Notes (optional)
             </label>
@@ -349,6 +380,10 @@ function RecordPaymentDialog({
 
           <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
             <Info className="mt-px size-3.5 shrink-0 text-secondary" aria-hidden="true" />
+            {/* One span, so the <strong> stays inline text. As direct
+                children of a flex row they each became a flex item and
+                the sentence broke into columns. */}
+            <span>
             {isCostKind(data.kind) ? (
               <>
                 This also creates an <strong className="font-semibold text-foreground">Expense</strong>,
@@ -367,6 +402,7 @@ function RecordPaymentDialog({
                 cost and stays out of Profit &amp; Loss.
               </>
             )}
+            </span>
           </p>
 
           {touched && !ok && (

@@ -6,6 +6,7 @@ import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
 import { COLLECTIONS } from "@/lib/firebase/firestore";
 import { writeDoc } from "@/lib/firebase/write";
 import { useExpenses } from "@/context/ExpensesContext";
+import { COUNTER_SELLERS } from "@/lib/constants";
 import {
   createOwnerId,
   createOwnerPaymentId,
@@ -117,6 +118,7 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
         periodMonth: typeof d.periodMonth === "string" ? d.periodMonth : "",
         notes: typeof d.notes === "string" ? d.notes : "",
         expenseId: typeof d.expenseId === "string" ? d.expenseId : undefined,
+        paidBy: typeof d.paidBy === "string" ? d.paidBy : undefined,
         createdAt:
           typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
       } satisfies OwnerPayment;
@@ -216,7 +218,15 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
           category: expenseCategoryFor(data.kind),
           amount: String(amount),
           paymentMethod: "CASH",
-          description: data.notes.trim(),
+          /**
+           * Who paid it rides into the expense description too. The
+           * Expense's own createdBy is the signed-in ACCOUNT, which the
+           * two owners share - so without this the expense could not
+           * say which of them actually handed the money over.
+           */
+          description: [data.paidBy ? `Paid by ${data.paidBy}` : "", data.notes.trim()]
+            .filter(Boolean)
+            .join(" - "),
           status: "PAID",
           // Midday for the same time-zone reason as a back-dated
           // purchase: a bare date read west of here lands a day early.
@@ -236,6 +246,10 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
         paidOn,
         periodMonth: data.periodMonth,
         notes: data.notes.trim(),
+        // Only stored when it is a name we know, like soldBy on a sale.
+        ...((COUNTER_SELLERS as readonly string[]).includes(data.paidBy)
+          ? { paidBy: data.paidBy }
+          : {}),
         ...(expenseId ? { expenseId } : {}),
         createdAt: new Date().toISOString(),
       };
