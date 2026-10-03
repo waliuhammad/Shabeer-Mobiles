@@ -29,7 +29,7 @@ import {
   EMPTY_EXPENSE_FILTERS,
   EXPENSE_FILTER_CATEGORIES,
   EXPENSE_CATEGORY_CONFIG,
-  EXPENSE_PAYMENT_METHODS,
+  EXPENSE_FILTER_PAYMENT_METHODS,
   EXPENSE_PAYMENT_METHOD_LABELS,
   EXPENSE_STATUSES,
   EXPENSE_STATUS_CONFIG,
@@ -166,7 +166,7 @@ export function ExpensesView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Payment Methods</SelectItem>
-            {EXPENSE_PAYMENT_METHODS.map((m) => (
+            {EXPENSE_FILTER_PAYMENT_METHODS.map((m) => (
               <SelectItem key={m} value={m}>
                 {EXPENSE_PAYMENT_METHOD_LABELS[m]}
               </SelectItem>

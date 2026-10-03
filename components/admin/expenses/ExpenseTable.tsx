@@ -5,7 +5,7 @@ import { Receipt, Eye, Pencil, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   EXPENSE_CATEGORY_CONFIG,
-  EXPENSE_PAYMENT_METHOD_LABELS,
+  expensePaymentLabel,
   EXPENSE_STATUS_CONFIG,
   canCancelExpense,
   canEditExpense,
@@ -108,7 +108,7 @@ export function ExpenseTable({
                     {formatPrice(e.amount)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">
-                    {EXPENSE_PAYMENT_METHOD_LABELS[e.paymentMethod]}
+                    {expensePaymentLabel(e)}
                   </td>
                   <td className="px-3 py-3">
                     <span
@@ -195,7 +195,7 @@ export function ExpenseTable({
 
               <div className="flex items-center justify-between gap-3 text-xs">
                 <span className="text-muted-foreground">
-                  {EXPENSE_PAYMENT_METHOD_LABELS[e.paymentMethod]}
+                  {expensePaymentLabel(e)}
                 </span>
                 <span
                   className={cn(

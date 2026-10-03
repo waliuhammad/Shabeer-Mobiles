@@ -51,6 +51,7 @@ function mapExpense(doc: QueryDocumentSnapshot): Expense | null {
       d.paymentMethod === "BANK_TRANSFER" || d.paymentMethod === "OTHER"
         ? d.paymentMethod
         : "CASH",
+    bankAccount: typeof d.bankAccount === "string" ? d.bankAccount : "",
     description: typeof d.description === "string" ? d.description : "",
     status,
     expenseDate: typeof d.expenseDate === "string" ? d.expenseDate : new Date(0).toISOString(),
@@ -92,6 +93,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         // conversion happens ONCE, here, on the way in.
         amount: Math.round(Number(data.amount)),
         paymentMethod: data.paymentMethod,
+        bankAccount: data.paymentMethod === "BANK_TRANSFER" ? data.bankAccount : "",
         description: data.description.trim(),
         status: data.status,
         expenseDate: new Date(data.expenseDate).toISOString(),
@@ -119,6 +121,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         category: data.category,
         amount: Math.round(Number(data.amount)),
         paymentMethod: data.paymentMethod,
+        bankAccount: data.paymentMethod === "BANK_TRANSFER" ? data.bankAccount : "",
         description: data.description.trim(),
         status: data.status,
         expenseDate: new Date(data.expenseDate).toISOString(),

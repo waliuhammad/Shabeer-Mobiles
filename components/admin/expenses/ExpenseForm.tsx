@@ -25,6 +25,7 @@ import {
   validateExpense,
   type ExpenseErrors,
 } from "@/lib/expense-utils";
+import { BANK_ACCOUNTS } from "@/lib/constants";
 import { now } from "@/lib/demo-clock";
 import { toDateInputValue } from "@/lib/date-range";
 import type {
@@ -57,7 +58,12 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
           title: expense.title,
           category: expense.category,
           amount: String(expense.amount),
-          paymentMethod: expense.paymentMethod,
+          // A retired "Other" row opens as cash rather than with a blank
+          // picker; the user sees it and can change it before saving.
+          paymentMethod: expense.paymentMethod === "OTHER" ? "CASH" : expense.paymentMethod,
+          // Older transfers have no account; left blank so the user is
+          // asked rather than having one silently guessed for them.
+          bankAccount: expense.bankAccount,
           description: expense.description,
           status: expense.status,
           expenseDate: toDateInputValue(new Date(expense.expenseDate)),
@@ -67,6 +73,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
           category: "REFRESHMENTS",
           amount: "",
           paymentMethod: "CASH",
+          bankAccount: BANK_ACCOUNTS[0],
           description: "",
           status: "PAID",
           // Defaults to today, which is what most entries are.
@@ -93,7 +100,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
 
     const found = validateExpense(data);
     if (Object.keys(found).length > 0) {
-      setTouched(new Set(["title", "amount", "expenseDate"]));
+      setTouched(new Set(["title", "amount", "expenseDate", "bankAccount"]));
       setErrors(found);
       return;
     }
@@ -204,6 +211,39 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                 ))}
               </SelectContent>
             </Select>
+
+            {data.paymentMethod === "BANK_TRANSFER" && (
+              <div className="mt-3">
+                <label
+                  htmlFor="expense-bank-account"
+                  className="mb-1.5 block text-sm font-medium text-foreground"
+                >
+                  Paid from <span className="text-destructive">*</span>
+                </label>
+                <Select
+                  value={data.bankAccount}
+                  onValueChange={(v) => set("bankAccount", v)}
+                >
+                  <SelectTrigger
+                    id="expense-bank-account"
+                    className="h-10 w-full"
+                    aria-invalid={Boolean(errors.bankAccount)}
+                  >
+                    <SelectValue placeholder="Choose account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BANK_ACCOUNTS.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.bankAccount && (
+                  <p className="mt-1.5 text-xs text-destructive">{errors.bankAccount}</p>
+                )}
+              </div>
+            )}
           </div>
 
           <FormField

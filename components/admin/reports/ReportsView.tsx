@@ -13,7 +13,7 @@ import { useCustomers } from "@/context/CustomersContext";
 import { useCatalog } from "@/context/CatalogContext";
 import { useInventory } from "@/context/InventoryContext";
 import { getFinancialSummary, getRevenueEntries } from "@/lib/finance-utils";
-import { getExpensesForPeriod, EXPENSE_CATEGORY_CONFIG, EXPENSE_STATUS_CONFIG, EXPENSE_PAYMENT_METHOD_LABELS } from "@/lib/expense-utils";
+import { getExpensesForPeriod, EXPENSE_CATEGORY_CONFIG, EXPENSE_STATUS_CONFIG, expensePaymentLabel } from "@/lib/expense-utils";
 import { calculateCustomerStats } from "@/lib/customer-utils";
 import { PURCHASE_STATUS_CONFIG } from "@/lib/purchase-utils";
 import { PRODUCT_STATUS_CONFIG } from "@/lib/catalog-utils";
@@ -122,7 +122,7 @@ export function ReportsView() {
           e.title,
           EXPENSE_CATEGORY_CONFIG[e.category].label,
           formatOrderDate(e.expenseDate),
-          EXPENSE_PAYMENT_METHOD_LABELS[e.paymentMethod],
+          expensePaymentLabel(e),
           EXPENSE_STATUS_CONFIG[e.status].label,
           e.amount,
         ]);

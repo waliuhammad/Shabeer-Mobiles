@@ -50,6 +50,13 @@ export interface Expense {
   amount: number;
 
   paymentMethod: ExpensePaymentMethod;
+  /**
+   * Which account a bank transfer went out of (JazzCash, EasyPaisa,
+   * Meezan Bank). Empty for cash - stored as "" rather than left out,
+   * because writes merge, and a missing field would leave the old
+   * account behind when a transfer is corrected to cash.
+   */
+  bankAccount: string;
 
   description: string;
 
@@ -78,6 +85,8 @@ export interface ExpenseFormData {
   category: ExpenseCategory;
   amount: string;
   paymentMethod: ExpensePaymentMethod;
+  /** Only meaningful when paymentMethod is "BANK_TRANSFER". */
+  bankAccount: string;
   description: string;
   status: ExpenseStatus;
   expenseDate: string;

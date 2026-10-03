@@ -70,7 +70,7 @@ export const EXPENSE_PAYMENT_METHOD_LABELS: Record<ExpensePaymentMethod, string>
 
 /**
  * What the expense form OFFERS. Deliberately shorter than the config
- * above: Rent, Salaries, Marketing and Other are no longer picked by
+ * above: Rent, Salaries, Marketing, Office and Other are no longer picked by
  * hand, but they stay in EXPENSE_CATEGORY_CONFIG because old records
  * still carry them - and rent paid on the Owners page is still filed as
  * RENT (see expenseCategoryFor in lib/owner-utils.ts). Dropping them
@@ -82,7 +82,6 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "TRANSPORT",
   "REPAIR",
   "UTILITIES",
-  "OFFICE",
   "MEAL",
   "REFRESHMENTS",
 ];
@@ -97,11 +96,30 @@ export const EXPENSE_FILTER_CATEGORIES = Object.keys(
 
 export const EXPENSE_STATUSES: ExpenseStatus[] = ["PAID", "PENDING", "CANCELLED"];
 
+/**
+ * What the expense form OFFERS. "Other" is retired - every payment is
+ * cash or a transfer from one of the shop's accounts - but it stays in
+ * the labels above so old rows still read correctly.
+ */
 export const EXPENSE_PAYMENT_METHODS: ExpensePaymentMethod[] = [
   "CASH",
   "BANK_TRANSFER",
-  "OTHER",
 ];
+
+/** What the list can FILTER by, retired "Other" included. */
+export const EXPENSE_FILTER_PAYMENT_METHODS = Object.keys(
+  EXPENSE_PAYMENT_METHOD_LABELS
+) as ExpensePaymentMethod[];
+
+/** "Cash", or "Bank Transfer · JazzCash" when the account is known. */
+export function expensePaymentLabel(
+  e: Pick<Expense, "paymentMethod" | "bankAccount">
+): string {
+  const method = EXPENSE_PAYMENT_METHOD_LABELS[e.paymentMethod];
+  return e.paymentMethod === "BANK_TRANSFER" && e.bankAccount
+    ? `${method} · ${e.bankAccount}`
+    : method;
+}
 
 export const EMPTY_EXPENSE_FILTERS: ExpenseFilterState = {
   query: "",
@@ -263,6 +281,7 @@ export interface ExpenseErrors {
   title?: string;
   amount?: string;
   expenseDate?: string;
+  bankAccount?: string;
 }
 
 /**
@@ -289,6 +308,10 @@ export function validateExpense(data: ExpenseFormData): ExpenseErrors {
 
   if (!data.expenseDate) {
     errors.expenseDate = "Pick the date the cost belongs to.";
+  }
+
+  if (data.paymentMethod === "BANK_TRANSFER" && !data.bankAccount) {
+    errors.bankAccount = "Choose which account it was paid from.";
   }
 
   return errors;

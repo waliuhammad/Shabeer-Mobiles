@@ -20,7 +20,7 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useExpenses } from "@/context/ExpensesContext";
 import {
   EXPENSE_CATEGORY_CONFIG,
-  EXPENSE_PAYMENT_METHOD_LABELS,
+  expensePaymentLabel,
   EXPENSE_STATUS_CONFIG,
   canCancelExpense,
   canEditExpense,
@@ -144,7 +144,7 @@ export function ExpenseDetailView({ expenseId }: ExpenseDetailViewProps) {
               </span>
             </Row>
             <Row label="Payment Method">
-              {EXPENSE_PAYMENT_METHOD_LABELS[record.paymentMethod]}
+              {expensePaymentLabel(record)}
             </Row>
             <Row label="Expense Date">
               {formatOrderDate(record.expenseDate)}

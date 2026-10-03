@@ -218,6 +218,7 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
           category: expenseCategoryFor(data.kind),
           amount: String(amount),
           paymentMethod: "CASH",
+          bankAccount: "",
           /**
            * Who paid it rides into the expense description too. The
            * Expense's own createdBy is the signed-in ACCOUNT, which the
