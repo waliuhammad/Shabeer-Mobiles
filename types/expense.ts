@@ -27,6 +27,8 @@ export type ExpenseCategory =
   | "REPAIR"
   | "UTILITIES"
   | "OFFICE"
+  | "MEAL"
+  | "REFRESHMENTS"
   | "OTHER";
 
 export type ExpenseStatus = "PAID" | "PENDING" | "CANCELLED";

@@ -64,7 +64,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
         }
       : {
           title: "",
-          category: "OTHER",
+          category: "REFRESHMENTS",
           amount: "",
           paymentMethod: "CASH",
           description: "",
@@ -153,7 +153,13 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {EXPENSE_CATEGORIES.map((c) => (
+                {/* An old record keeps its retired category (Rent,
+                    Salaries...) as an option, or editing it would show a
+                    blank field and quietly force a re-file. */}
+                {(EXPENSE_CATEGORIES.includes(data.category)
+                  ? EXPENSE_CATEGORIES
+                  : [data.category, ...EXPENSE_CATEGORIES]
+                ).map((c) => (
                   <SelectItem key={c} value={c}>
                     {EXPENSE_CATEGORY_CONFIG[c].label}
                   </SelectItem>

@@ -36,6 +36,8 @@ export const EXPENSE_CATEGORY_CONFIG: Record<
   REPAIR: { label: "Repair", badgeClass: "bg-muted text-muted-foreground" },
   UTILITIES: { label: "Utilities", badgeClass: "bg-warning/15 text-gold-deep" },
   OFFICE: { label: "Office", badgeClass: "bg-muted text-muted-foreground" },
+  MEAL: { label: "Meal", badgeClass: "bg-success/10 text-success" },
+  REFRESHMENTS: { label: "Refreshments", badgeClass: "bg-accent/20 text-gold-deep" },
   OTHER: { label: "Other", badgeClass: "bg-muted text-muted-foreground" },
 };
 
@@ -66,18 +68,32 @@ export const EXPENSE_PAYMENT_METHOD_LABELS: Record<ExpensePaymentMethod, string>
   OTHER: "Other",
 };
 
+/**
+ * What the expense form OFFERS. Deliberately shorter than the config
+ * above: Rent, Salaries, Marketing and Other are no longer picked by
+ * hand, but they stay in EXPENSE_CATEGORY_CONFIG because old records
+ * still carry them - and rent paid on the Owners page is still filed as
+ * RENT (see expenseCategoryFor in lib/owner-utils.ts). Dropping them
+ * from the config would leave those rows with no label.
+ */
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  "RENT",
   "ELECTRICITY",
   "INTERNET",
-  "SALARIES",
-  "MARKETING",
   "TRANSPORT",
   "REPAIR",
   "UTILITIES",
   "OFFICE",
-  "OTHER",
+  "MEAL",
+  "REFRESHMENTS",
 ];
+
+/**
+ * What the list page can FILTER by: every category a record can carry,
+ * retired ones included, so old rent or salary rows can still be found.
+ */
+export const EXPENSE_FILTER_CATEGORIES = Object.keys(
+  EXPENSE_CATEGORY_CONFIG
+) as ExpenseCategory[];
 
 export const EXPENSE_STATUSES: ExpenseStatus[] = ["PAID", "PENDING", "CANCELLED"];
 

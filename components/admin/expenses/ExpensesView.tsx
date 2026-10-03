@@ -27,7 +27,7 @@ import { ExpenseTable } from "@/components/admin/expenses/ExpenseTable";
 import { useExpenses } from "@/context/ExpensesContext";
 import {
   EMPTY_EXPENSE_FILTERS,
-  EXPENSE_CATEGORIES,
+  EXPENSE_FILTER_CATEGORIES,
   EXPENSE_CATEGORY_CONFIG,
   EXPENSE_PAYMENT_METHODS,
   EXPENSE_PAYMENT_METHOD_LABELS,
@@ -147,7 +147,7 @@ export function ExpensesView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {EXPENSE_CATEGORIES.map((c) => (
+            {EXPENSE_FILTER_CATEGORIES.map((c) => (
               <SelectItem key={c} value={c}>
                 {EXPENSE_CATEGORY_CONFIG[c].label}
               </SelectItem>
