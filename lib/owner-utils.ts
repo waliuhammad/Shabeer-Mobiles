@@ -1,5 +1,14 @@
-import { OWNER_ROLES } from "@/types";
-import type { Owner, OwnerErrors, OwnerFormData, OwnerRole } from "@/types";
+import { OWNER_PAYMENT_KINDS, OWNER_ROLES } from "@/types";
+import type {
+  ExpenseCategory,
+  Owner,
+  OwnerErrors,
+  OwnerFormData,
+  OwnerPayment,
+  OwnerPaymentFormData,
+  OwnerPaymentKind,
+  OwnerRole,
+} from "@/types";
 
 export const EMPTY_OWNER_FORM: OwnerFormData = {
   name: "",
@@ -100,4 +109,110 @@ export function totalSharePercent(owners: Owner[]): number {
   return owners
     .filter((o) => o.status === "active" && o.sharePercent !== null)
     .reduce((sum, o) => sum + (o.sharePercent ?? 0), 0);
+}
+
+/* ====================================================================
+   MONEY PAID TO THE PLAZA OWNERS
+   ==================================================================== */
+
+export const OWNER_PAYMENT_LABELS: Record<OwnerPaymentKind, string> = {
+  advance: "Advance",
+  security: "Security deposit",
+  rent: "Rent",
+  maintenance: "Maintenance",
+  refund: "Refund received",
+};
+
+/**
+ * Money the landlord is HOLDING and owes back. Not a cost.
+ */
+const DEPOSIT_KINDS: OwnerPaymentKind[] = ["advance", "security"];
+
+/**
+ * Money that is GONE - the month was used up. These become Expenses.
+ */
+const COST_KINDS: OwnerPaymentKind[] = ["rent", "maintenance"];
+
+export function isDepositKind(kind: OwnerPaymentKind): boolean {
+  return DEPOSIT_KINDS.includes(kind);
+}
+
+export function isCostKind(kind: OwnerPaymentKind): boolean {
+  return COST_KINDS.includes(kind);
+}
+
+/** Does this kind cover a month, or is it a one-off? */
+export function isRecurringKind(kind: OwnerPaymentKind): boolean {
+  return isCostKind(kind);
+}
+
+/**
+ * Which Expense category a cost lands in.
+ *
+ * Rent is RENT. Maintenance is UTILITIES - a recurring service charge
+ * on the building, which is the closest existing category and keeps it
+ * out of OTHER, where it would be invisible among odds and ends.
+ */
+export function expenseCategoryFor(kind: OwnerPaymentKind): ExpenseCategory {
+  return kind === "rent" ? "RENT" : "UTILITIES";
+}
+
+export function createOwnerPaymentId(): string {
+  return `opay_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function isOwnerPaymentKind(v: unknown): v is OwnerPaymentKind {
+  return (OWNER_PAYMENT_KINDS as readonly string[]).includes(String(v));
+}
+
+/**
+ * What the landlord is holding of the shop's money.
+ *
+ * Deposits in, refunds out. Rent and maintenance are NOT in this
+ * figure - they were spent, not lodged, and adding them would turn a
+ * refundable balance into a meaningless running total of everything
+ * ever handed over.
+ */
+export function depositHeld(payments: OwnerPayment[]): number {
+  return payments.reduce((sum, p) => {
+    if (isDepositKind(p.kind)) return sum + p.amount;
+    if (p.kind === "refund") return sum - p.amount;
+    return sum;
+  }, 0);
+}
+
+export function totalOfKind(payments: OwnerPayment[], kind: OwnerPaymentKind): number {
+  return payments
+    .filter((p) => p.kind === kind)
+    .reduce((sum, p) => sum + p.amount, 0);
+}
+
+export function validateOwnerPayment(
+  data: OwnerPaymentFormData
+): Partial<Record<keyof OwnerPaymentFormData, string>> {
+  const errors: Partial<Record<keyof OwnerPaymentFormData, string>> = {};
+
+  const amount = Number(data.amount);
+  if (!data.amount.trim()) {
+    errors.amount = "Enter the amount.";
+  } else if (!Number.isFinite(amount) || amount <= 0) {
+    // A negative payment is a refund, which is its own kind above -
+    // allowing one here would let the same thing be recorded two ways.
+    errors.amount = "Amount must be more than zero.";
+  }
+
+  if (!data.paidOn) {
+    errors.paidOn = "Pick the date the money moved.";
+  }
+
+  /**
+   * Rent and maintenance must say WHICH MONTH. April's rent paid late
+   * on 3 May is an April cost, and without this the expense would land
+   * in May and quietly move a cost between months.
+   */
+  if (isRecurringKind(data.kind) && !data.periodMonth) {
+    errors.periodMonth = "Say which month this covers.";
+  }
+
+  return errors;
 }

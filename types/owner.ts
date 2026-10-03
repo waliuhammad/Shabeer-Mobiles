@@ -81,3 +81,73 @@ export interface OwnerFormData {
 }
 
 export type OwnerErrors = Partial<Record<keyof OwnerFormData, string>>;
+
+/* ====================================================================
+   MONEY PAID TO THE PLAZA OWNERS
+
+   Five things, and they are NOT all the same kind of money:
+
+     ADVANCE and SECURITY are deposits. The shop handed money over and
+     is owed it back when it leaves. That is not a cost - nothing was
+     consumed - so expensing it would understate profit now and
+     overstate it on the day it is refunded.
+
+     RENT and MAINTENANCE are costs. The month is gone and so is the
+     money. These belong in Profit & Loss, and recording one here
+     creates the matching Expense so it is entered once and cannot
+     drift from a second hand-typed copy.
+
+     REFUND is a deposit coming back. It reduces what the landlord
+     holds; it is not income.
+
+   This is the same distinction lib/finance-utils.ts already makes
+   about stock purchases - money moving is not the same as money spent.
+   ==================================================================== */
+
+export const OWNER_PAYMENT_KINDS = [
+  "advance",
+  "security",
+  "rent",
+  "maintenance",
+  "refund",
+] as const;
+
+export type OwnerPaymentKind = (typeof OWNER_PAYMENT_KINDS)[number];
+
+export interface OwnerPayment {
+  id: string;
+  ownerId: string;
+  /** Snapshot, so renaming a person cannot rewrite the ledger. */
+  ownerName: string;
+  kind: OwnerPaymentKind;
+  /** Rupees, whole numbers like every other amount here. */
+  amount: number;
+  /** ISO. The date the money moved - back-datable, for history. */
+  paidOn: string;
+  /**
+   * Which month a recurring charge covers, as "YYYY-MM".
+   *
+   * Separate from paidOn because they genuinely differ: April's rent
+   * paid late on 3 May is an April charge. Empty for one-off deposits,
+   * which cover no period.
+   */
+  periodMonth: string;
+  notes: string;
+  /**
+   * The Expense this created, for rent and maintenance.
+   *
+   * Stored so the two can never be counted twice and so the link is
+   * visible rather than implied. Absent on deposits and refunds,
+   * which are not costs.
+   */
+  expenseId?: string;
+  createdAt: string;
+}
+
+export interface OwnerPaymentFormData {
+  kind: OwnerPaymentKind;
+  amount: string;
+  paidOn: string;
+  periodMonth: string;
+  notes: string;
+}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Pencil, Phone, Mail, MapPin, PieChart, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OwnerPaymentsSection } from "@/components/admin/owners/OwnerPaymentsSection";
 import { useOwners } from "@/context/OwnersContext";
 import { formatOrderDateTime } from "@/lib/order-display";
 import { cn } from "@/lib/utils";

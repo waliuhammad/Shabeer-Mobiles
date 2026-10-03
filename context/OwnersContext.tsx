@@ -5,12 +5,23 @@ import { useAuth } from "@/context/AuthContext";
 import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
 import { COLLECTIONS } from "@/lib/firebase/firestore";
 import { writeDoc } from "@/lib/firebase/write";
+import { useExpenses } from "@/context/ExpensesContext";
 import {
   createOwnerId,
+  createOwnerPaymentId,
+  expenseCategoryFor,
+  isCostKind,
+  isOwnerPaymentKind,
   isOwnerRole,
+  OWNER_PAYMENT_LABELS,
   parseSharePercent,
 } from "@/lib/owner-utils";
-import type { Owner, OwnerFormData } from "@/types";
+import type {
+  Owner,
+  OwnerFormData,
+  OwnerPayment,
+  OwnerPaymentFormData,
+} from "@/types";
 
 /**
  * The people with a stake in the shop and the building.
@@ -30,6 +41,11 @@ interface OwnersContextValue {
   getOwner: (id: string) => Owner | undefined;
   createOwner: (data: OwnerFormData) => Promise<Owner>;
   updateOwner: (id: string, data: OwnerFormData) => Promise<Owner | undefined>;
+
+  /** Every payment made to the plaza owners, newest first. */
+  payments: OwnerPayment[];
+  getOwnerPayments: (ownerId: string) => OwnerPayment[];
+  recordPayment: (ownerId: string, data: OwnerPaymentFormData) => Promise<OwnerPayment>;
   loading: boolean;
   error: string | null;
   isHydrated: boolean;
@@ -41,6 +57,7 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
 
   const enabled = !authLoading && Boolean(user?.isStaff) && user?.role !== "CASHIER";
+  const { createExpense } = useExpenses();
 
   const state = useFirestoreCollection<Owner>(
     COLLECTIONS.owners,
@@ -83,6 +100,41 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
         return a.name.localeCompare(b.name);
       }),
     [state.items]
+  );
+
+  const paymentsState = useFirestoreCollection<OwnerPayment>(
+    COLLECTIONS.ownerPayments,
+    (doc) => {
+      const d = doc.data();
+      if (!isOwnerPaymentKind(d.kind) || typeof d.amount !== "number") return null;
+      return {
+        id: doc.id,
+        ownerId: typeof d.ownerId === "string" ? d.ownerId : "",
+        ownerName: typeof d.ownerName === "string" ? d.ownerName : "",
+        kind: d.kind,
+        amount: d.amount,
+        paidOn: typeof d.paidOn === "string" ? d.paidOn : new Date(0).toISOString(),
+        periodMonth: typeof d.periodMonth === "string" ? d.periodMonth : "",
+        notes: typeof d.notes === "string" ? d.notes : "",
+        expenseId: typeof d.expenseId === "string" ? d.expenseId : undefined,
+        createdAt:
+          typeof d.createdAt === "string" ? d.createdAt : new Date(0).toISOString(),
+      } satisfies OwnerPayment;
+    },
+    { enabled }
+  );
+
+  const payments = useMemo(
+    // By the date the money moved, not by when the row was typed -
+    // six months of history entered today would otherwise read as one
+    // block in whatever order it happened to be keyed in.
+    () => [...paymentsState.items].sort((a, b) => b.paidOn.localeCompare(a.paidOn)),
+    [paymentsState.items]
+  );
+
+  const getOwnerPayments = useCallback(
+    (ownerId: string) => payments.filter((p) => p.ownerId === ownerId),
+    [payments]
   );
 
   const getOwner = useCallback(
@@ -134,17 +186,92 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
     [owners, fromForm]
   );
 
+  /**
+   * Record money paid to a plaza owner.
+   *
+   * RENT AND MAINTENANCE ALSO CREATE AN EXPENSE, and that is the whole
+   * reason this lives in a context rather than in the form: entering it
+   * here must be the ONLY entry, or the shop types it twice and Profit
+   * & Loss counts it twice.
+   *
+   * Deposits and refunds create nothing. An advance is money the
+   * landlord is holding, not money spent - expensing it would
+   * understate profit now and overstate it on the day it comes back.
+   *
+   * The expense is dated by the MONTH IT COVERS, not the day it was
+   * paid. April's rent settled on 3 May is an April cost; using the
+   * payment date would move it into May and make both months wrong.
+   */
+  const recordPayment = useCallback(
+    async (ownerId: string, data: OwnerPaymentFormData): Promise<OwnerPayment> => {
+      const owner = owners.find((o) => o.id === ownerId);
+      const amount = Math.round(Number(data.amount));
+      const paidOn = new Date(`${data.paidOn}T12:00:00`).toISOString();
+
+      let expenseId: string | undefined;
+      if (isCostKind(data.kind)) {
+        const label = OWNER_PAYMENT_LABELS[data.kind];
+        const expense = await createExpense({
+          title: `${label} - ${owner?.name ?? "plaza owner"}${data.periodMonth ? ` (${data.periodMonth})` : ""}`,
+          category: expenseCategoryFor(data.kind),
+          amount: String(amount),
+          paymentMethod: "CASH",
+          description: data.notes.trim(),
+          status: "PAID",
+          // Midday for the same time-zone reason as a back-dated
+          // purchase: a bare date read west of here lands a day early.
+          expenseDate: data.periodMonth
+            ? `${data.periodMonth}-15T12:00:00`
+            : `${data.paidOn}T12:00:00`,
+        });
+        expenseId = expense.id;
+      }
+
+      const payment: OwnerPayment = {
+        id: createOwnerPaymentId(),
+        ownerId,
+        ownerName: owner?.name ?? "",
+        kind: data.kind,
+        amount,
+        paidOn,
+        periodMonth: data.periodMonth,
+        notes: data.notes.trim(),
+        ...(expenseId ? { expenseId } : {}),
+        createdAt: new Date().toISOString(),
+      };
+
+      await writeDoc(COLLECTIONS.ownerPayments, payment.id, payment);
+      return payment;
+    },
+    [owners, createExpense]
+  );
+
   const value = useMemo(
     () => ({
       owners,
       getOwner,
       createOwner,
       updateOwner,
-      loading: state.loading,
-      error: state.error,
-      isHydrated: !state.loading,
+      payments,
+      getOwnerPayments,
+      recordPayment,
+      loading: state.loading || paymentsState.loading,
+      error: state.error ?? paymentsState.error,
+      isHydrated: !state.loading && !paymentsState.loading,
     }),
-    [owners, getOwner, createOwner, updateOwner, state.loading, state.error]
+    [
+      owners,
+      getOwner,
+      createOwner,
+      updateOwner,
+      payments,
+      getOwnerPayments,
+      recordPayment,
+      state.loading,
+      state.error,
+      paymentsState.loading,
+      paymentsState.error,
+    ]
   );
 
   return <OwnersContext.Provider value={value}>{children}</OwnersContext.Provider>;

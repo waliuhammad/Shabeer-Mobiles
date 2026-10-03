@@ -27,6 +27,7 @@ export const COLLECTIONS = {
   expenses: "expenses",
   suppliers: "suppliers",
   owners: "owners",
+  ownerPayments: "ownerPayments",
   purchases: "purchases",
   inventory: "inventory",
   inventoryTransactions: "inventoryTransactions",

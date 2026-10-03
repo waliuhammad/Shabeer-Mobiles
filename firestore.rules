@@ -235,6 +235,16 @@ service cloud.firestore {
       allow write: if isOwnerOrManager();
     }
 
+    /**
+     * Money paid to the plaza owners - advance, security, rent,
+     * maintenance, refunds. What the shop pays its landlord is not a
+     * cashier's business, so the same restriction as owners itself.
+     */
+    match /ownerPayments/{paymentId} {
+      allow read: if isOwnerOrManager();
+      allow write: if isOwnerOrManager();
+    }
+
     match /purchases/{purchaseId} {
       allow read: if isOwnerOrManager();
       // Receiving a purchase moves stock. That should eventually be one
