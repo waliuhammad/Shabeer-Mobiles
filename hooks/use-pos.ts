@@ -9,7 +9,6 @@ import {
 } from "@/lib/pos-utils";
 import { BANK_ACCOUNTS, COUNTER_SELLERS } from "@/lib/constants";
 import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
-import { WALK_IN_CUSTOMER_ID } from "@/types";
 import type {
   POSPaymentMethod,
   POSCartItem,
@@ -29,8 +28,18 @@ import type {
  */
 interface POSState {
   invoiceNumber: string;
-  /** Central customer id. Defaults to the stable walk-in record. */
-  customerId: string;
+  /**
+   * WHO IS BUYING, typed on the bill rather than chosen from a
+   * directory.
+   *
+   * The counter serves people it has never seen before and will not see
+   * again, and making somebody search a customer list before they can
+   * ring up a Rs 349 screen protector cost more time than the record
+   * was ever worth. Blank is allowed and prints as "Walk-in Customer".
+   */
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
   items: POSCartItem[];
   /** What the cashier TYPED. The clamped value comes from the totals. */
   discount: number;
@@ -56,7 +65,7 @@ type POSAction =
   | { type: "ADD_CUSTOM"; input: CustomLineInput }
   | { type: "SET_QUANTITY"; productId: string; quantity: number }
   | { type: "REMOVE_ITEM"; productId: string }
-  | { type: "SET_CUSTOMER"; customerId: string }
+  | { type: "SET_CUSTOMER_FIELD"; field: "customerName" | "customerPhone" | "customerAddress"; value: string }
   | { type: "SET_DISCOUNT"; discount: number }
   | { type: "SET_PAID"; paidAmount: number }
   | { type: "SET_PAYMENT_METHOD"; method: POSPaymentMethod }
@@ -67,7 +76,9 @@ type POSAction =
 function createInitialState(invoiceNumber: string): POSState {
   return {
     invoiceNumber,
-    customerId: WALK_IN_CUSTOMER_ID,
+    customerName: "",
+    customerPhone: "",
+    customerAddress: "",
     items: [],
     discount: 0,
     paidAmount: 0,
@@ -181,8 +192,8 @@ function posReducer(state: POSState, action: POSAction): POSState {
         items: state.items.filter((i) => i.productId !== action.productId),
       };
 
-    case "SET_CUSTOMER":
-      return { ...state, customerId: action.customerId };
+    case "SET_CUSTOMER_FIELD":
+      return { ...state, [action.field]: action.value };
 
     case "SET_DISCOUNT":
       return { ...state, discount: Math.max(0, action.discount) };
@@ -265,8 +276,9 @@ export function usePOS(startingSequence: number) {
     []
   );
 
-  const setCustomer = useCallback(
-    (customerId: string) => dispatch({ type: "SET_CUSTOMER", customerId }),
+  const setCustomerField = useCallback(
+    (field: "customerName" | "customerPhone" | "customerAddress", value: string) =>
+      dispatch({ type: "SET_CUSTOMER_FIELD", field, value }),
     []
   );
 
@@ -318,7 +330,7 @@ export function usePOS(startingSequence: number) {
     addCustomItem,
     setQuantity,
     removeItem,
-    setCustomer,
+    setCustomerField,
     setDiscount,
     setPaidAmount,
     setPaymentMethod,

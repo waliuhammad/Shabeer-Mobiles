@@ -155,6 +155,11 @@ export interface Invoice {
   /** Snapshot of what was printed. See the note above. */
   customerName: string;
   customerPhone: string;
+  /**
+   * Typed at the counter, optional. Most walk-in sales have none - it
+   * matters when something is being delivered or followed up.
+   */
+  customerAddress?: string;
   items: InvoiceLine[];
 
   subtotal: number;

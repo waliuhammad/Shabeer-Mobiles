@@ -93,6 +93,8 @@ function mapInvoice(doc: QueryDocumentSnapshot): Invoice | null {
     customerId: typeof d.customerId === "string" ? d.customerId : "",
     customerName: typeof d.customerName === "string" ? d.customerName : "",
     customerPhone: typeof d.customerPhone === "string" ? d.customerPhone : "",
+    customerAddress:
+      typeof d.customerAddress === "string" ? d.customerAddress : undefined,
     items,
     subtotal: typeof d.subtotal === "number" ? d.subtotal : 0,
     discount: typeof d.discount === "number" ? d.discount : 0,

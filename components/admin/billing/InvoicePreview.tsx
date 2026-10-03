@@ -117,6 +117,9 @@ export function InvoicePreview({
               {/* Snapshot fields - what was printed at the time, not a
                   live lookup of the customer's current details. */}
               <Meta label="Billed To" value={invoice.customerName} strong />
+              {invoice.customerAddress && (
+                <Meta label="Address" value={invoice.customerAddress} />
+              )}
               {invoice.customerPhone && (
                 <Meta label="Phone" value={invoice.customerPhone} />
               )}

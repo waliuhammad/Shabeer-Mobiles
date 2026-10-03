@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useCustomers } from "@/context/CustomersContext";
 import { toast } from "sonner";
 import { Receipt, Save, Plus, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COUNTER_SELLERS } from "@/lib/constants";
-import { POSCustomerPanel } from "@/components/admin/billing/POSCustomerPanel";
 import { POSSummary } from "@/components/admin/billing/POSSummary";
 import { InvoicePreview } from "@/components/admin/billing/InvoicePreview";
 import { usePOS } from "@/hooks/use-pos";
@@ -52,10 +50,12 @@ export function POSTerminal() {
   // the till no longer guesses the next one.
   const { nextInvoiceSequence } = useInvoices();
   const pos = usePOS(nextInvoiceSequence);
-  // The bill carries a customer ID; the name for validation and the
-  // printed receipt is looked up from the ONE central directory.
-  const { getCustomer } = useCustomers();
-  const customer = getCustomer(pos.customerId);
+  /**
+   * The customer is TYPED on the bill, not looked up. See POSState for
+   * why - the counter mostly serves people it will not see again, and
+   * searching a directory first cost more time than the record was
+   * worth.
+   */
 
   /**
    * Bills rung up in THIS session, newest first.
@@ -82,7 +82,8 @@ export function POSTerminal() {
   async function handleSaveBill() {
     const result = validateBill(
       pos.items,
-      customer?.name ?? "",
+      // Blank is allowed; the server prints "Walk-in Customer".
+      pos.customerName.trim() || "Walk-in Customer",
       pos.totals,
       pos.discount,
       pos.paidAmount
@@ -114,7 +115,9 @@ export function POSTerminal() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerId: pos.customerId,
+          customerName: pos.customerName,
+          customerPhone: pos.customerPhone,
+          customerAddress: pos.customerAddress,
           /**
            * Split by kind, because the server treats them differently:
            * a catalogue line is a product id and a quantity and nothing
@@ -254,7 +257,65 @@ export function POSTerminal() {
               </Button>
             </div>
 
-            <POSCustomerPanel customerId={pos.customerId} onChange={pos.setCustomer} />
+            {/*
+              WHO IS BUYING, typed here.
+
+              This replaced a customer PICKER - search the directory,
+              choose a record, or create one first. At a counter selling
+              a Rs 349 screen protector that was more work than the
+              record was worth, so most sales went to "Walk-in Customer"
+              and the directory told you nothing anyway.
+
+              All three are optional. A blank name prints as "Walk-in
+              Customer", which is what the shop actually means when
+              nobody asked.
+            */}
+            <div className="space-y-2">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="pos-cust-name" className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Customer name
+                  </label>
+                  <input
+                    id="pos-cust-name"
+                    type="text"
+                    autoComplete="off"
+                    value={pos.customerName}
+                    onChange={(e) => pos.setCustomerField("customerName", e.target.value)}
+                    placeholder="Walk-in Customer"
+                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-secondary focus:ring-2 focus:ring-ring/30"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="pos-cust-phone" className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Phone number
+                  </label>
+                  <input
+                    id="pos-cust-phone"
+                    type="tel"
+                    autoComplete="off"
+                    value={pos.customerPhone}
+                    onChange={(e) => pos.setCustomerField("customerPhone", e.target.value)}
+                    placeholder="0300 1234567"
+                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm tabular-nums outline-none transition-colors placeholder:text-muted-foreground focus:border-secondary focus:ring-2 focus:ring-ring/30"
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="pos-cust-address" className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Address <span className="font-normal">(optional)</span>
+                </label>
+                <input
+                  id="pos-cust-address"
+                  type="text"
+                  autoComplete="off"
+                  value={pos.customerAddress}
+                  onChange={(e) => pos.setCustomerField("customerAddress", e.target.value)}
+                  placeholder="Only needed for delivery or follow-up"
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-secondary focus:ring-2 focus:ring-ring/30"
+                />
+              </div>
+            </div>
 
             {/*
               WHO SERVED THE CUSTOMER. The two owners share a sign-in, so

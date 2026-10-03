@@ -147,6 +147,11 @@ export function InvoiceDetailView({ invoiceNumber }: InvoiceDetailViewProps) {
                 {invoice.customerPhone}
               </span>
             )}
+            {invoice.customerAddress && (
+              <span className="block text-xs font-normal text-muted-foreground">
+                {invoice.customerAddress}
+              </span>
+            )}
           </Fact>
           <Fact Icon={Store} label="Sold by">
             {/*

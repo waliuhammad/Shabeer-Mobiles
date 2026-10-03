@@ -128,7 +128,9 @@ export async function POST(request: Request) {
   }
 
   let body: {
-    customerId?: unknown;
+    customerName?: unknown;
+    customerPhone?: unknown;
+    customerAddress?: unknown;
     items?: unknown;
     customItems?: unknown;
     discount?: unknown;
@@ -167,7 +169,23 @@ export async function POST(request: Request) {
   const requestedLines: SaleLineInput[] = rawItems;
   const requestedCustom: CustomLineInput[] = rawCustom;
 
-  const customerId = typeof body.customerId === "string" ? body.customerId : "cus_walkin";
+  /**
+   * THE CUSTOMER IS TYPED AT THE COUNTER, not looked up.
+   *
+   * Rule 2 at the top says the browser may not send a price, because
+   * the price is already known here. The same reasoning does NOT apply
+   * to a name: there is nothing on the server to check it against, and
+   * nothing about it decides what is charged. Trimmed and capped so a
+   * runaway paste cannot be stored, and that is the whole of it.
+   *
+   * A blank name becomes "Walk-in Customer", which is what the shop
+   * means when nobody asked.
+   */
+  const text = (v: unknown, max: number) =>
+    typeof v === "string" ? v.trim().slice(0, max) : "";
+  const customerName = text(body.customerName, 120) || "Walk-in Customer";
+  const customerPhone = text(body.customerPhone, 30);
+  const customerAddress = text(body.customerAddress, 200);
   const requestedDiscount =
     typeof body.discount === "number" && body.discount > 0 ? Math.round(body.discount) : 0;
   const requestedPaid =
@@ -322,17 +340,20 @@ export async function POST(request: Request) {
       const id = `inv_${String(nextSequence).padStart(4, "0")}`;
       const createdAt = new Date().toISOString();
 
-      const customerSnap = await txn.get(db.collection("customers").doc(customerId));
-      const customer = (customerSnap.data() ?? {}) as Record<string, unknown>;
 
       const record: Invoice = {
         id,
         invoiceNumber,
-        customerId,
-        // Snapshots: renaming a customer must not rewrite a handed-over receipt.
-        customerName:
-          typeof customer.name === "string" ? customer.name : "Walk-in Customer",
-        customerPhone: typeof customer.phone === "string" ? customer.phone : "",
+        /**
+         * No directory link any more. The details below ARE the record
+         * - which is also how an invoice always behaved: it snapshotted
+         * them so renaming a customer could not rewrite a handed-over
+         * receipt. Removing the lookup removes the link, not the facts.
+         */
+        customerId: "",
+        customerName,
+        customerPhone,
+        ...(customerAddress ? { customerAddress } : {}),
         items: lines,
         subtotal,
         discount,
