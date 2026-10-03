@@ -84,7 +84,7 @@ export interface MapCoordinates {
  */
 function resolveShopCoordinates(): MapCoordinates | null {
   // Pinned by the shop owner on Google Maps.
-  return { lat: 30.203701, lng: 71.459992 };
+  return { lat: 30.203627, lng: 71.460035 };
 }
 
 /**
