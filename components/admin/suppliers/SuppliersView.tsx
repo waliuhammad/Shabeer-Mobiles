@@ -9,9 +9,9 @@ import {
   Wallet,
   Search,
   Plus,
-  Eye,
-  Pencil,
   Building2,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,11 +30,6 @@ import {
 } from "@/lib/purchase-utils";
 import { formatPrice, cn } from "@/lib/utils";
 import type { SupplierStatus } from "@/types";
-
-const STATUS_STYLES: Record<SupplierStatus, { label: string; badgeClass: string }> = {
-  active: { label: "Active", badgeClass: "bg-success/10 text-success" },
-  inactive: { label: "Inactive", badgeClass: "bg-muted text-muted-foreground" },
-};
 
 /**
  * /admin/suppliers.
@@ -151,168 +146,112 @@ export function SuppliersView() {
         Showing {visible.length} of {suppliers.length} suppliers
       </p>
 
-      {/* ---------------- TABLE ---------------- */}
-      <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
-        {visible.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <Building2 className="size-8 text-muted-foreground" aria-hidden="true" />
-            <p className="text-sm font-semibold text-foreground">No suppliers match</p>
-            <p className="max-w-xs text-xs text-muted-foreground">
-              Try a different search or status.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full text-sm">
-                <caption className="sr-only">Suppliers and their balances</caption>
-                <thead>
-                  <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th scope="col" className="px-4 py-2.5 font-medium">Supplier</th>
-                    <th scope="col" className="px-3 py-2.5 font-medium">Contact</th>
-                    <th scope="col" className="px-3 py-2.5 font-medium">Phone</th>
-                    <th scope="col" className="px-3 py-2.5 text-right font-medium">Purchased</th>
-                    <th scope="col" className="px-3 py-2.5 text-right font-medium">Paid</th>
-                    <th scope="col" className="px-3 py-2.5 text-right font-medium">Due</th>
-                    <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
-                    <th scope="col" className="px-4 py-2.5 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {visible.map((s) => {
-                    const t = totalsById.get(s.id);
-                    const style = STATUS_STYLES[s.status];
-                    return (
-                      <tr key={s.id} className="transition-colors hover:bg-muted/40">
-                        <th scope="row" className="px-4 py-3 text-left">
-                          <Link
-                            href={`/admin/suppliers/${s.id}`}
-                            className="font-semibold text-primary hover:text-secondary"
-                          >
-                            {s.name}
-                          </Link>
-                          <span className="block text-[11px] text-muted-foreground">
-                            {s.city}
-                          </span>
-                        </th>
-                        <td className="px-3 py-3 text-foreground">{s.contactPerson || "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">
-                          {s.phone || "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-foreground">
-                          {formatPrice(t?.totalPurchased ?? 0)}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-muted-foreground">
-                          {formatPrice(t?.totalPaid ?? 0)}
-                        </td>
-                        <td
-                          className={cn(
-                            "whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums",
-                            (t?.totalDue ?? 0) > 0 ? "text-destructive" : "text-success"
-                          )}
-                        >
-                          {formatPrice(t?.totalDue ?? 0)}
-                        </td>
-                        <td className="px-3 py-3">
-                          <span
-                            className={cn(
-                              "inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                              style.badgeClass
-                            )}
-                          >
-                            {style.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-1">
-                            <Button asChild variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs">
-                              <Link href={`/admin/suppliers/${s.id}`}>
-                                <Eye className="size-3.5" aria-hidden="true" />
-                                View
-                              </Link>
-                            </Button>
-                            <Button asChild variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs">
-                              <Link href={`/admin/suppliers/${s.id}/edit`}>
-                                <Pencil className="size-3.5" aria-hidden="true" />
-                                Edit
-                              </Link>
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* below lg: cards */}
-            <ul className="divide-y divide-border lg:hidden">
-              {visible.map((s) => {
-                const t = totalsById.get(s.id);
-                const style = STATUS_STYLES[s.status];
-                return (
-                  <li key={s.id} className="space-y-2.5 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <Link href={`/admin/suppliers/${s.id}`} className="font-semibold text-primary">
-                          {s.name}
-                        </Link>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {s.contactPerson || "—"} &middot; {s.phone || "—"}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                          style.badgeClass
-                        )}
+      {/* ---------------- CARDS ----------------
+          The same card the Owners page uses, so the two directories read
+          alike: name and who you speak to on top, numbers you can tap to
+          dial, and the whole card opens the record. The money line under
+          it is what a supplier card has that an owner card does not. */}
+      {visible.length === 0 ? (
+        <div className="mt-3 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-card py-16 text-center">
+          <Building2 className="size-8 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm font-semibold text-foreground">No suppliers match</p>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            Try a different search or status.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+          {visible.map((s) => {
+            const t = totalsById.get(s.id);
+            const due = t?.totalDue ?? 0;
+            return (
+              <li
+                key={s.id}
+                className={cn(
+                  "relative rounded-xl border border-border bg-card p-4 transition-colors hover:border-secondary/40",
+                  s.status === "inactive" && "opacity-60"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate font-semibold text-primary">
+                      {/* Stretched link: the whole card opens the supplier. */}
+                      <Link
+                        href={`/admin/suppliers/${s.id}`}
+                        className="after:absolute after:inset-0 after:content-[''] hover:text-secondary"
                       >
-                        {style.label}
+                        {s.name}
+                      </Link>
+                    </h2>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {[s.contactPerson, s.city].filter(Boolean).join(" · ") || "Supplier"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {due > 0 && (
+                      <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-[11px] font-semibold text-destructive">
+                        {formatPrice(due)} due
                       </span>
-                    </div>
+                    )}
+                    {s.status === "inactive" && (
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                    <dl className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div>
-                        <dt className="text-muted-foreground">Purchased</dt>
-                        <dd className="font-medium tabular-nums text-foreground">
-                          {formatPrice(t?.totalPurchased ?? 0)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Paid</dt>
-                        <dd className="font-medium tabular-nums text-foreground">
-                          {formatPrice(t?.totalPaid ?? 0)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Due</dt>
-                        <dd
-                          className={cn(
-                            "font-semibold tabular-nums",
-                            (t?.totalDue ?? 0) > 0 ? "text-destructive" : "text-success"
-                          )}
-                        >
-                          {formatPrice(t?.totalDue ?? 0)}
-                        </dd>
-                      </div>
-                    </dl>
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  {s.phone && (
+                    <p className="flex items-center gap-1.5">
+                      <Phone className="size-3.5 shrink-0 text-secondary" aria-hidden="true" />
+                      {/* Above the card overlay, so tapping the number on a
+                          phone dials instead of opening the record. */}
+                      <a href={`tel:${s.phone}`} className="relative z-10 hover:text-secondary">
+                        {s.phone}
+                      </a>
+                    </p>
+                  )}
+                  {s.email && (
+                    <p className="flex items-center gap-1.5">
+                      <Mail className="size-3.5 shrink-0 text-secondary" aria-hidden="true" />
+                      <a href={`mailto:${s.email}`} className="relative z-10 truncate hover:text-secondary">
+                        {s.email}
+                      </a>
+                    </p>
+                  )}
+                </div>
 
-                    <div className="flex gap-2">
-                      <Button asChild variant="outline" size="sm" className="h-9 flex-1 gap-1.5 text-xs">
-                        <Link href={`/admin/suppliers/${s.id}`}>View</Link>
-                      </Button>
-                      <Button asChild variant="outline" size="sm" className="h-9 flex-1 gap-1.5 text-xs">
-                        <Link href={`/admin/suppliers/${s.id}/edit`}>Edit</Link>
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
-      </div>
+                <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs">
+                  <div>
+                    <dt className="text-muted-foreground">Purchased</dt>
+                    <dd className="font-medium tabular-nums text-foreground">
+                      {formatPrice(t?.totalPurchased ?? 0)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Paid</dt>
+                    <dd className="font-medium tabular-nums text-foreground">
+                      {formatPrice(t?.totalPaid ?? 0)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Due</dt>
+                    <dd
+                      className={cn(
+                        "font-semibold tabular-nums",
+                        due > 0 ? "text-destructive" : "text-success"
+                      )}
+                    >
+                      {formatPrice(due)}
+                    </dd>
+                  </div>
+                </dl>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </>
   );
 }
