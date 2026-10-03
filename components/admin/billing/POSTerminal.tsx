@@ -137,6 +137,9 @@ export function POSTerminal() {
           paidAmount: pos.paidAmount,
           paymentMethod: pos.paymentMethod,
           soldBy: pos.soldBy,
+          // Only meaningful for a transfer; the server ignores it
+          // otherwise rather than storing an account on a cash sale.
+          bankAccount: pos.bankAccount,
         }),
       });
 
@@ -300,6 +303,8 @@ export function POSTerminal() {
               discountInput={pos.discount}
               paidInput={pos.paidAmount}
               paymentMethod={pos.paymentMethod}
+              bankAccount={pos.bankAccount}
+              onBankAccountChange={pos.setBankAccount}
               onDiscountChange={pos.setDiscount}
               onPaidChange={pos.setPaidAmount}
               onPaymentMethodChange={pos.setPaymentMethod}

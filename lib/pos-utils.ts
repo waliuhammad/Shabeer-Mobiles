@@ -283,11 +283,15 @@ export function validateBill(
    BUILDING THE MOCK INVOICE
    ================================================================== */
 
+/**
+ * Card and Other are gone, at the shop's request - neither was ever
+ * used. Checked before removing them: of the invoices on record, four
+ * were cash and one a bank transfer, so narrowing the type relabels no
+ * past sale.
+ */
 export const PAYMENT_METHOD_LABELS: Record<POSPaymentMethod, string> = {
   cash: "Cash",
-  card: "Card",
   "bank-transfer": "Bank Transfer",
-  other: "Other",
 };
 
 export const PAYMENT_STATUS_STYLES: Record<

@@ -154,6 +154,7 @@ function invoiceToEntry(invoice: Invoice): RevenueEntry {
     // not the invoice total.
     collected: invoice.paidAmount,
     itemCount: invoice.items.reduce((n, l) => n + l.quantity, 0),
+    soldBy: invoice.soldBy,
     statusLabel: "Completed",
     statusClass: "bg-success/10 text-success",
     paymentLabel: payment.label,
@@ -162,6 +163,23 @@ function invoiceToEntry(invoice: Invoice): RevenueEntry {
     // receipt - the same convention /admin/orders uses.
     href: `/admin/invoices/${encodeURIComponent(invoice.invoiceNumber)}`,
   };
+}
+
+/**
+ * Narrow a list of sales to one seller.
+ *
+ * Here rather than in each page, so the dashboard and /admin/revenue
+ * cannot disagree about what "sales by Jawad" means. An entry with no
+ * seller - every online order, and any counter invoice from before the
+ * field existed - is EXCLUDED rather than quietly counted for whoever
+ * is selected, because "not recorded" is not the same as "theirs".
+ */
+export function filterBySeller(
+  entries: RevenueEntry[],
+  seller: string | "all"
+): RevenueEntry[] {
+  if (seller === "all") return entries;
+  return entries.filter((e) => e.soldBy === seller);
 }
 
 /**

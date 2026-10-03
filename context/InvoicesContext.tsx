@@ -80,10 +80,13 @@ function mapInvoice(doc: QueryDocumentSnapshot): Invoice | null {
     d.paymentStatus === "PAID" || d.paymentStatus === "PARTIAL" || d.paymentStatus === "DUE"
       ? d.paymentStatus
       : "DUE";
-  const method: POSPaymentMethod =
-    d.paymentMethod === "card" || d.paymentMethod === "bank-transfer" || d.paymentMethod === "other"
-      ? d.paymentMethod
-      : "cash";
+  /**
+   * Card and Other were removed from the till; no invoice on record
+   * used either, so nothing is being relabelled here. An unrecognised
+   * value still falls back to cash rather than failing the document -
+   * losing a sale from the books over a payment label would be worse.
+   */
+  const method: POSPaymentMethod = d.paymentMethod === "bank-transfer" ? "bank-transfer" : "cash";
   return {
     id: doc.id,
     invoiceNumber: d.invoiceNumber,
@@ -104,6 +107,7 @@ function mapInvoice(doc: QueryDocumentSnapshot): Invoice | null {
     // by the server and not listed here comes back undefined - which is
     // exactly how isCustom silently vanished once already.
     soldBy: typeof d.soldBy === "string" ? d.soldBy : undefined,
+    bankAccount: typeof d.bankAccount === "string" ? d.bankAccount : undefined,
   };
 }
 

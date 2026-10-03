@@ -40,7 +40,7 @@
  * different sets of values - so two types, not one union trying to cover
  * both.
  */
-export type POSPaymentMethod = "cash" | "card" | "bank-transfer" | "other";
+export type POSPaymentMethod = "cash" | "bank-transfer";
 
 /**
  * How much of THIS BILL has been settled at the counter.
@@ -182,6 +182,17 @@ export interface Invoice {
    * answer, and inventing one for them would be worse than showing none.
    */
   soldBy?: string;
+  /**
+   * WHICH account the transfer went to - JazzCash, EasyPaisa or Meezan
+   * Bank. Set only when paymentMethod is "bank-transfer".
+   *
+   * Separate from the method rather than flattened into it, because
+   * "how much came in by transfer" and "which account it landed in" are
+   * two different questions and the shop will want both. Flattening
+   * would make the first one a sum over three values that have to be
+   * remembered.
+   */
+  bankAccount?: string;
 }
 
 export interface InvoiceLine {

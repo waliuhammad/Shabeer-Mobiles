@@ -4,7 +4,15 @@ import { useMemo, useState } from "react";
 import { useOrders } from "@/context/OrdersContext";
 import { useInvoices } from "@/context/InvoicesContext";
 import { RevenueTable } from "@/components/admin/finance/RevenueTable";
-import { buildRevenueSeries, getRevenueEntries } from "@/lib/finance-utils";
+import { buildRevenueSeries, filterBySeller, getRevenueEntries } from "@/lib/finance-utils";
+import { COUNTER_SELLERS } from "@/lib/constants";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { bucketUnitFor, resolvePeriod, type PeriodId } from "@/lib/date-range";
 import { formatPrice, cn } from "@/lib/utils";
 
@@ -39,17 +47,25 @@ export function SalesOverview() {
   const { orders } = useOrders();
   const { invoices } = useInvoices();
   const [rangeId, setRangeId] = useState<PeriodId>("7d");
+  /** "all", or one of the two owners. */
+  const [seller, setSeller] = useState<string>("all");
 
   const { points, unit, total } = useMemo(() => {
     const range = resolvePeriod(rangeId);
-    const entries = getRevenueEntries(orders, invoices, range);
+    /**
+     * Filtered BEFORE the series is built, so the table, the headline
+     * total and the margin all describe the same set of sales. Filtering
+     * afterwards would leave the total saying one thing and the rows
+     * another.
+     */
+    const entries = filterBySeller(getRevenueEntries(orders, invoices, range), seller);
     const bucket = bucketUnitFor(rangeId, range);
     return {
       points: buildRevenueSeries(entries, range, bucket),
       unit: bucket,
       total: entries.reduce((sum, e) => sum + e.revenue, 0),
     };
-  }, [orders, invoices, rangeId]);
+  }, [orders, invoices, rangeId, seller]);
 
   return (
     <div>
@@ -61,7 +77,22 @@ export function SalesOverview() {
           </p>
         </div>
 
-        <div role="group" aria-label="Select a period" className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={seller} onValueChange={setSeller}>
+            <SelectTrigger className="h-8 w-40 text-xs" aria-label="Filter by who sold it">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sellers</SelectItem>
+              {COUNTER_SELLERS.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div role="group" aria-label="Select a period" className="flex flex-wrap gap-1.5">
           {RANGES.map((r) => (
             <button
               key={r.id}
@@ -78,8 +109,17 @@ export function SalesOverview() {
               {r.label}
             </button>
           ))}
+          </div>
         </div>
       </div>
+
+      {seller !== "all" && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Showing only sales recorded as sold by{" "}
+          <span className="font-semibold text-foreground">{seller}</span>. Online
+          orders and older counter sales carry no seller, so they are not here.
+        </p>
+      )}
 
       <RevenueTable points={points} unitLabel={unit} title="Sales by period" />
     </div>

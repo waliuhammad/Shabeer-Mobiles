@@ -55,6 +55,16 @@ export interface RevenueEntry {
 
   itemCount: number;
 
+  /**
+   * Which owner served the customer, for counter sales.
+   *
+   * Undefined on an online order - nobody stood at a counter for it -
+   * and on counter invoices written before the field existed. Both are
+   * genuinely "not known", which is why filtering by a seller leaves
+   * them out rather than guessing at one.
+   */
+  soldBy?: string;
+
   statusLabel: string;
   statusClass: string;
   paymentLabel: string;

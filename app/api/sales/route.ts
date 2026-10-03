@@ -4,7 +4,7 @@ import { isAdminConfigured } from "@/lib/firebase/admin";
 import { getAdminDb } from "@/lib/firebase/admin-db";
 import { verifySession } from "@/lib/auth/dal";
 import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
-import { COUNTER_SELLERS } from "@/lib/constants";
+import { BANK_ACCOUNTS, COUNTER_SELLERS } from "@/lib/constants";
 import type { Invoice, InvoiceLine, POSPaymentMethod } from "@/types";
 
 /**
@@ -135,6 +135,7 @@ export async function POST(request: Request) {
     paidAmount?: unknown;
     paymentMethod?: unknown;
     soldBy?: unknown;
+    bankAccount?: unknown;
   };
   try {
     body = await request.json();
@@ -171,11 +172,23 @@ export async function POST(request: Request) {
     typeof body.discount === "number" && body.discount > 0 ? Math.round(body.discount) : 0;
   const requestedPaid =
     typeof body.paidAmount === "number" && body.paidAmount > 0 ? Math.round(body.paidAmount) : 0;
-  const paymentMethod = (["cash", "card", "bank-transfer", "other"].includes(
-    String(body.paymentMethod)
-  )
+  const paymentMethod = (["cash", "bank-transfer"].includes(String(body.paymentMethod))
     ? body.paymentMethod
     : "cash") as POSPaymentMethod;
+
+  /**
+   * The account, only for a transfer and only if it is one we know.
+   *
+   * Dropped rather than rejected when unrecognised, like soldBy: it is
+   * a label on the money, and refusing a real sale over it would be the
+   * wrong trade. Never stored on a cash sale, where it would be a fact
+   * about nothing.
+   */
+  const bankAccount =
+    paymentMethod === "bank-transfer" &&
+    (BANK_ACCOUNTS as readonly string[]).includes(String(body.bankAccount))
+      ? String(body.bankAccount)
+      : undefined;
 
   /**
    * WHO SERVED THE CUSTOMER, checked against the known list.
@@ -335,6 +348,7 @@ export async function POST(request: Request) {
         // would trade away whichever was not chosen.
         cashierName: user.displayName ?? user.email ?? "Staff",
         ...(soldBy ? { soldBy } : {}),
+        ...(bankAccount ? { bankAccount } : {}),
       };
 
       // ---- writes ----

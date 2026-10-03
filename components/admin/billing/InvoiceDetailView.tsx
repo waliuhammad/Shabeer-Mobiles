@@ -167,6 +167,7 @@ export function InvoiceDetailView({ invoiceNumber }: InvoiceDetailViewProps) {
           <Fact Icon={Receipt} label="Payment">
             {PAYMENT_METHOD_LABELS[invoice.paymentMethod]}
             <span className="block text-xs font-normal text-muted-foreground">
+              {invoice.bankAccount ? `${invoice.bankAccount} · ` : ""}
               {itemCount} {itemCount === 1 ? "item" : "items"}
             </span>
           </Fact>

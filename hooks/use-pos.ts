@@ -7,7 +7,7 @@ import {
   formatInvoiceNumber,
   productToPOSItem,
 } from "@/lib/pos-utils";
-import { COUNTER_SELLERS } from "@/lib/constants";
+import { BANK_ACCOUNTS, COUNTER_SELLERS } from "@/lib/constants";
 import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import { WALK_IN_CUSTOMER_ID } from "@/types";
 import type {
@@ -39,6 +39,8 @@ interface POSState {
   paymentMethod: POSPaymentMethod;
   /** Which owner is serving. Printed on the receipt and stored. */
   soldBy: string;
+  /** Only meaningful when paymentMethod is "bank-transfer". */
+  bankAccount: string;
 }
 
 /** What the off-catalogue form collects. */
@@ -59,6 +61,7 @@ type POSAction =
   | { type: "SET_PAID"; paidAmount: number }
   | { type: "SET_PAYMENT_METHOD"; method: POSPaymentMethod }
   | { type: "SET_SOLD_BY"; soldBy: string }
+  | { type: "SET_BANK_ACCOUNT"; bankAccount: string }
   | { type: "RESET"; invoiceNumber: string };
 
 function createInitialState(invoiceNumber: string): POSState {
@@ -77,6 +80,10 @@ function createInitialState(invoiceNumber: string): POSState {
      * where a blank one is a dead end mid-sale.
      */
     soldBy: COUNTER_SELLERS[0],
+    // Pre-selected so choosing "Bank Transfer" never leaves an empty
+    // required box behind it; one click corrects it, a blank is a dead
+    // end mid-sale.
+    bankAccount: BANK_ACCOUNTS[0],
   };
 }
 
@@ -189,6 +196,9 @@ function posReducer(state: POSState, action: POSAction): POSState {
     case "SET_SOLD_BY":
       return { ...state, soldBy: action.soldBy };
 
+    case "SET_BANK_ACCOUNT":
+      return { ...state, bankAccount: action.bankAccount };
+
     case "RESET":
       return createInitialState(action.invoiceNumber);
 
@@ -275,6 +285,11 @@ export function usePOS(startingSequence: number) {
     []
   );
 
+  const setBankAccount = useCallback(
+    (bankAccount: string) => dispatch({ type: "SET_BANK_ACCOUNT", bankAccount }),
+    []
+  );
+
   const setPaymentMethod = useCallback(
     (method: POSPaymentMethod) =>
       dispatch({ type: "SET_PAYMENT_METHOD", method }),
@@ -308,6 +323,7 @@ export function usePOS(startingSequence: number) {
     setPaidAmount,
     setPaymentMethod,
     setSoldBy,
+    setBankAccount,
     startNewBill,
     getBilledQuantity,
   };

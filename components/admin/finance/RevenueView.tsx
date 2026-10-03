@@ -36,6 +36,7 @@ import {
 } from "@/lib/date-range";
 import { now } from "@/lib/demo-clock";
 import { formatOrderDateTime } from "@/lib/order-display";
+import { COUNTER_SELLERS } from "@/lib/constants";
 import { formatPrice, cn } from "@/lib/utils";
 import { SALES_CHANNEL_LABELS, type SalesChannel } from "@/types";
 
@@ -65,6 +66,7 @@ export function RevenueView() {
   const [query, setQuery] = useState("");
   const [channel, setChannel] = useState<SalesChannel | "all">("all");
   const [payment, setPayment] = useState<string>("all");
+  const [seller, setSeller] = useState<string>("all");
 
   const range = useMemo(
     () => resolvePeriod(period, customStart, customEnd),
@@ -100,18 +102,25 @@ export function RevenueView() {
     return entries.filter((e) => {
       if (channel !== "all" && e.channel !== channel) return false;
       if (payment !== "all" && e.paymentLabel !== payment) return false;
+      // "Not recorded" is not the same as "theirs" - see filterBySeller.
+      if (seller !== "all" && e.soldBy !== seller) return false;
       if (!q) return true;
       return (
         e.reference.toLowerCase().includes(q) ||
         e.customerName.toLowerCase().includes(q)
       );
     });
-  }, [entries, query, channel, payment]);
+  }, [entries, query, channel, payment, seller]);
 
   const unit = bucketUnitFor(period, range);
+  /**
+   * Built from the FILTERED list, not from every sale in the period.
+   * Otherwise picking a seller leaves the table above describing one
+   * set of sales and the rows below describing another.
+   */
   const series = useMemo(
-    () => (rangeOk ? buildRevenueSeries(entries, range, unit) : []),
-    [entries, range, unit, rangeOk]
+    () => (rangeOk ? buildRevenueSeries(visible, range, unit) : []),
+    [visible, range, unit, rangeOk]
   );
 
   const shown = useMemo(
@@ -215,6 +224,20 @@ export function RevenueView() {
             <SelectItem value="all">All Channels</SelectItem>
             <SelectItem value="POS">Counter</SelectItem>
             <SelectItem value="ONLINE">Online</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={seller} onValueChange={setSeller}>
+          <SelectTrigger className="h-10 sm:w-44" aria-label="Filter by who sold it">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sellers</SelectItem>
+            {COUNTER_SELLERS.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 

@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUS_STYLES } from "@/lib/pos-utils";
+import { BANK_ACCOUNTS } from "@/lib/constants";
 import { formatPrice, cn } from "@/lib/utils";
 import type { POSPaymentMethod, POSTotals } from "@/types";
 
@@ -18,12 +19,14 @@ interface POSSummaryProps {
   discountInput: number;
   paidInput: number;
   paymentMethod: POSPaymentMethod;
+  bankAccount: string;
+  onBankAccountChange: (value: string) => void;
   onDiscountChange: (value: number) => void;
   onPaidChange: (value: number) => void;
   onPaymentMethodChange: (method: POSPaymentMethod) => void;
 }
 
-const PAYMENT_METHODS: POSPaymentMethod[] = ["cash", "card", "bank-transfer", "other"];
+const PAYMENT_METHODS: POSPaymentMethod[] = ["cash", "bank-transfer"];
 
 /**
  * Totals + discount + payment.
@@ -43,6 +46,8 @@ export function POSSummary({
   discountInput,
   paidInput,
   paymentMethod,
+  bankAccount,
+  onBankAccountChange,
   onDiscountChange,
   onPaidChange,
   onPaymentMethodChange,
@@ -163,6 +168,38 @@ export function POSSummary({
           </SelectContent>
         </Select>
       </div>
+
+      {/*
+        WHICH ACCOUNT, only once a transfer is chosen.
+
+        Nested rather than flattened into the method list. "How much came
+        in by transfer" and "which account it landed in" are different
+        questions, and a single list of Cash / JazzCash / EasyPaisa /
+        Meezan would turn the first into a sum over three values somebody
+        has to remember to include.
+      */}
+      {paymentMethod === "bank-transfer" && (
+        <div>
+          <label
+            htmlFor="pos-bank-account"
+            className="mb-1 block text-xs font-medium text-muted-foreground"
+          >
+            Account
+          </label>
+          <Select value={bankAccount} onValueChange={onBankAccountChange}>
+            <SelectTrigger id="pos-bank-account" className="h-10 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {BANK_ACCOUNTS.map((account) => (
+                <SelectItem key={account} value={account}>
+                  {account}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* ---------- Totals ---------- */}
       <dl className="space-y-2 rounded-lg border border-border bg-muted/30 p-3 text-sm">

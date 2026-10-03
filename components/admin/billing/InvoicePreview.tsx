@@ -177,9 +177,16 @@ export function InvoicePreview({
               </div>
               <Row label="Paid" value={formatPrice(invoice.paidAmount)} />
               <Row label="Due" value={formatPrice(invoice.dueAmount)} />
+              {/* Names the account on a transfer, so the customer's copy
+                  says where the money went and the shop can match it
+                  against the statement later. */}
               <Row
                 label="Payment Method"
-                value={PAYMENT_METHOD_LABELS[invoice.paymentMethod]}
+                value={
+                  invoice.bankAccount
+                    ? `${PAYMENT_METHOD_LABELS[invoice.paymentMethod]} - ${invoice.bankAccount}`
+                    : PAYMENT_METHOD_LABELS[invoice.paymentMethod]
+                }
               />
               <div className="flex items-center justify-between pt-1">
                 <dt className="text-muted-foreground">Status</dt>

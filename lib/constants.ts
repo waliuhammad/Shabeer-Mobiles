@@ -221,3 +221,15 @@ export const FOOTER_SERVICE_LINKS: NavLink[] = [
 export const COUNTER_SELLERS = ["Jawad Raza", "Shahryar Mughal"] as const;
 
 export type CounterSeller = (typeof COUNTER_SELLERS)[number];
+
+/**
+ * WHERE A TRANSFER LANDS.
+ *
+ * Two mobile wallets and a bank, which is how money actually moves in a
+ * Multan shop. A fixed list for the same reason COUNTER_SELLERS is one:
+ * free text would give "jazzcash", "JazzCash" and "jazz cash" for the
+ * same account, and then nothing can be totalled per account.
+ */
+export const BANK_ACCOUNTS = ["JazzCash", "EasyPaisa", "Meezan Bank"] as const;
+
+export type BankAccount = (typeof BANK_ACCOUNTS)[number];
