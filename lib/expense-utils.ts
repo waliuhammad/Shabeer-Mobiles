@@ -282,6 +282,7 @@ export interface ExpenseErrors {
   amount?: string;
   expenseDate?: string;
   bankAccount?: string;
+  paidBy?: string;
 }
 
 /**
@@ -308,6 +309,10 @@ export function validateExpense(data: ExpenseFormData): ExpenseErrors {
 
   if (!data.expenseDate) {
     errors.expenseDate = "Pick the date the cost belongs to.";
+  }
+
+  if (!data.paidBy) {
+    errors.paidBy = "Choose who paid it.";
   }
 
   if (data.paymentMethod === "BANK_TRANSFER" && !data.bankAccount) {

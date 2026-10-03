@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Eye, Pencil, Ban } from "lucide-react";
+import { Receipt, Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   EXPENSE_CATEGORY_CONFIG,
   expensePaymentLabel,
   EXPENSE_STATUS_CONFIG,
-  canCancelExpense,
   canEditExpense,
 } from "@/lib/expense-utils";
 import { formatOrderDate } from "@/lib/order-utils";
@@ -16,7 +15,8 @@ import type { Expense } from "@/types";
 
 interface ExpenseTableProps {
   expenses: Expense[];
-  onCancel: (expense: Expense) => void;
+  /** Absent = the viewer may not delete, and no Delete button shows. */
+  onDelete?: (expense: Expense) => void;
   emptyMessage?: string;
 }
 
@@ -28,7 +28,7 @@ interface ExpenseTableProps {
  */
 export function ExpenseTable({
   expenses,
-  onCancel,
+  onDelete,
   emptyMessage = "Try a different search or filter.",
 }: ExpenseTableProps) {
   if (expenses.length === 0) {
@@ -56,7 +56,7 @@ export function ExpenseTable({
               <th scope="col" className="px-3 py-2.5 font-medium">Payment</th>
               <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
               <th scope="col" className="px-3 py-2.5 font-medium">Expense Date</th>
-              <th scope="col" className="px-3 py-2.5 font-medium">Created By</th>
+              <th scope="col" className="px-3 py-2.5 font-medium">Paid By</th>
               <th scope="col" className="px-4 py-2.5 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -124,7 +124,7 @@ export function ExpenseTable({
                     {formatOrderDate(e.expenseDate)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
-                    {e.createdBy}
+                    {e.paidBy || "-"}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
@@ -142,16 +142,16 @@ export function ExpenseTable({
                           </Link>
                         </Button>
                       )}
-                      {canCancelExpense(e) && (
+                      {onDelete && (
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => onCancel(e)}
-                          aria-label={`Cancel ${e.title}`}
-                          className="h-8 gap-1 px-2 text-xs"
+                          onClick={() => onDelete(e)}
+                          aria-label={`Delete ${e.title}`}
+                          className="h-8 gap-1 px-2 text-xs text-destructive hover:text-destructive"
                         >
-                          <Ban className="size-3.5" aria-hidden="true" />
+                          <Trash2 className="size-3.5" aria-hidden="true" />
                         </Button>
                       )}
                     </div>
@@ -196,6 +196,7 @@ export function ExpenseTable({
               <div className="flex items-center justify-between gap-3 text-xs">
                 <span className="text-muted-foreground">
                   {expensePaymentLabel(e)}
+                  {e.paidBy && ` · ${e.paidBy}`}
                 </span>
                 <span
                   className={cn(
@@ -214,6 +215,18 @@ export function ExpenseTable({
                 {canEditExpense(e) && (
                   <Button asChild variant="outline" size="sm" className="h-9 flex-1 text-xs">
                     <Link href={`/admin/expenses/${e.id}/edit`}>Edit</Link>
+                  </Button>
+                )}
+                {onDelete && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onDelete(e)}
+                    aria-label={`Delete ${e.title}`}
+                    className="h-9 px-3 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="size-3.5" aria-hidden="true" />
                   </Button>
                 )}
               </div>

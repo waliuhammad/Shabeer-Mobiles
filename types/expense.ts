@@ -58,6 +58,13 @@ export interface Expense {
    */
   bankAccount: string;
 
+  /**
+   * Which owner actually paid it - Jawad or Shahryar. Not createdBy,
+   * which is the signed-in account and the two share one. Empty on rows
+   * entered before this field existed.
+   */
+  paidBy: string;
+
   description: string;
 
   status: ExpenseStatus;
@@ -87,6 +94,7 @@ export interface ExpenseFormData {
   paymentMethod: ExpensePaymentMethod;
   /** Only meaningful when paymentMethod is "BANK_TRANSFER". */
   bankAccount: string;
+  paidBy: string;
   description: string;
   status: ExpenseStatus;
   expenseDate: string;

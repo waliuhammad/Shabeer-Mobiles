@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Receipt, CalendarDays, CheckCircle2, Clock, Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,18 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { KpiCard } from "@/components/admin/KpiCard";
 import { ExpenseTable } from "@/components/admin/expenses/ExpenseTable";
+import { DeleteExpenseDialog } from "@/components/admin/expenses/DeleteExpenseDialog";
+import { useAuth } from "@/context/AuthContext";
 import { useExpenses } from "@/context/ExpensesContext";
 import {
   EMPTY_EXPENSE_FILTERS,
@@ -48,10 +39,13 @@ import type { Expense, ExpenseFilterState } from "@/types";
  * is cancelled - there is no second number to remember to update.
  */
 export function ExpensesView() {
-  const { expenses, cancelExpense } = useExpenses();
+  const { expenses } = useExpenses();
+  const { user } = useAuth();
+  // Mirrors firestore.rules: only the owner account may delete.
+  const canDelete = user?.role === "SUPER_ADMIN";
 
   const [filters, setFilters] = useState<ExpenseFilterState>(EMPTY_EXPENSE_FILTERS);
-  const [pendingCancel, setPendingCancel] = useState<Expense | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
 
   const set = <K extends keyof ExpenseFilterState>(
     key: K,
@@ -63,15 +57,6 @@ export function ExpensesView() {
     () => filterExpenses(expenses, filters),
     [expenses, filters]
   );
-
-  function confirmCancel() {
-    if (!pendingCancel) return;
-    cancelExpense(pendingCancel.id);
-    toast.success("Expense cancelled.", {
-      description: `${pendingCancel.title} no longer counts towards operating expenses.`,
-    });
-    setPendingCancel(null);
-  }
 
   return (
     <>
@@ -233,7 +218,7 @@ export function ExpensesView() {
 
       <ExpenseTable
         expenses={visible}
-        onCancel={setPendingCancel}
+        onDelete={canDelete ? setPendingDelete : undefined}
         emptyMessage={
           expenses.length === 0
             ? "Record the shop's rent, bills and wages to see them counted against profit."
@@ -241,29 +226,10 @@ export function ExpensesView() {
         }
       />
 
-      {/* ---------------- CANCEL CONFIRMATION ---------------- */}
-      <AlertDialog
-        open={pendingCancel !== null}
-        onOpenChange={(open) => !open && setPendingCancel(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this expense?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingCancel?.title} ({formatPrice(pendingCancel?.amount ?? 0)}) will
-              stop counting towards operating expenses, so net profit for its period
-              will rise. The record stays in the list for the audit trail - expenses
-              are never deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCancel}>
-              Cancel expense
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteExpenseDialog
+        expense={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
     </>
   );
 }

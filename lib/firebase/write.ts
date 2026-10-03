@@ -98,10 +98,11 @@ export async function patchDoc(
 }
 
 /**
- * Hard delete. Used ONLY for records with no history behind them - an
- * empty category, for instance. Products, customers, orders, invoices
- * and expenses are never deleted; they are archived, deactivated or
- * cancelled, because something else references them.
+ * Hard delete. Used for records with no history behind them - an empty
+ * category, for instance - and for expenses, which the owner may delete
+ * outright. Products, customers, orders and invoices are never deleted;
+ * they are archived, deactivated or cancelled, because something else
+ * references them.
  */
 export async function removeDoc(collectionName: string, id: string): Promise<void> {
   try {

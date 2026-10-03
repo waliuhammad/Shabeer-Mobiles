@@ -2,27 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { toast } from "sonner";
-import { ArrowLeft, Pencil, Ban, Receipt } from "lucide-react";
+import { notFound, useRouter } from "next/navigation";
+import { ArrowLeft, Pencil, Trash2, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { DeleteExpenseDialog } from "@/components/admin/expenses/DeleteExpenseDialog";
+import { useAuth } from "@/context/AuthContext";
 import { useExpenses } from "@/context/ExpensesContext";
 import {
   EXPENSE_CATEGORY_CONFIG,
   expensePaymentLabel,
   EXPENSE_STATUS_CONFIG,
-  canCancelExpense,
   canEditExpense,
 } from "@/lib/expense-utils";
 import { formatOrderDateTime } from "@/lib/order-display";
@@ -36,8 +26,13 @@ interface ExpenseDetailViewProps {
 
 /** /admin/expenses/[id] */
 export function ExpenseDetailView({ expenseId }: ExpenseDetailViewProps) {
-  const { getExpense, cancelExpense, isHydrated } = useExpenses();
+  const { getExpense, isHydrated } = useExpenses();
+  const { user } = useAuth();
+  const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Set once the delete lands, so the vanished record does not 404
+  // in the moment before the redirect.
+  const [deleted, setDeleted] = useState(false);
 
   const expense = getExpense(expenseId);
 
@@ -45,25 +40,17 @@ export function ExpenseDetailView({ expenseId }: ExpenseDetailViewProps) {
   // in this browser would briefly look missing. Waiting avoids a 404
   // flashing up on a record that does exist.
   if (!expense) {
-    if (!isHydrated) return null;
+    if (!isHydrated || deleted) return null;
     notFound();
   }
 
-  // Re-bound so the narrowing survives into handleCancel below -
+  // Re-bound so the narrowing survives into the closures below -
   // TypeScript does not carry a narrowed outer binding into a closure.
   const record: Expense = expense;
 
   const category = EXPENSE_CATEGORY_CONFIG[record.category];
   const status = EXPENSE_STATUS_CONFIG[record.status];
   const cancelled = record.status === "CANCELLED";
-
-  function handleCancel() {
-    cancelExpense(record.id);
-    toast.success("Expense cancelled.", {
-      description: "It no longer counts towards operating expenses.",
-    });
-    setConfirmOpen(false);
-  }
 
   return (
     <>
@@ -86,15 +73,15 @@ export function ExpenseDetailView({ expenseId }: ExpenseDetailViewProps) {
                 </Link>
               </Button>
             )}
-            {canCancelExpense(record) && (
+            {user?.role === "SUPER_ADMIN" && (
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setConfirmOpen(true)}
-                className="h-10 gap-1.5 px-4 text-sm"
+                className="h-10 gap-1.5 px-4 text-sm text-destructive hover:text-destructive"
               >
-                <Ban className="size-4" aria-hidden="true" />
-                Cancel Expense
+                <Trash2 className="size-4" aria-hidden="true" />
+                Delete
               </Button>
             )}
           </div>
@@ -152,6 +139,7 @@ export function ExpenseDetailView({ expenseId }: ExpenseDetailViewProps) {
                 The period this cost belongs to
               </span>
             </Row>
+            <Row label="Paid By">{record.paidBy || "-"}</Row>
             <Row label="Created By">{record.createdBy}</Row>
             <Row label="Recorded">{formatOrderDateTime(record.createdAt)}</Row>
             <Row label="Last Updated">{formatOrderDateTime(record.updatedAt)}</Row>
@@ -172,31 +160,21 @@ export function ExpenseDetailView({ expenseId }: ExpenseDetailViewProps) {
             <p className="mt-5 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
               This expense is cancelled. It contributes nothing to operating
               expenses or net profit, and can no longer be edited - but it is kept
-              here so the correction stays visible. Financial records are never
-              deleted.
+              here so the correction stays visible. Delete it if it should
+              not be listed at all.
             </p>
           )}
         </div>
       </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this expense?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {record.title} ({formatPrice(record.amount)}) will stop counting
-              towards operating expenses, so net profit for its period will rise.
-              The record stays visible for the audit trail.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel}>
-              Cancel expense
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteExpenseDialog
+        expense={confirmOpen ? record : null}
+        onClose={() => setConfirmOpen(false)}
+        onDeleted={() => {
+          setDeleted(true);
+          router.push("/admin/expenses");
+        }}
+      />
     </>
   );
 }

@@ -220,14 +220,15 @@ export function OwnersProvider({ children }: { children: React.ReactNode }) {
           paymentMethod: "CASH",
           bankAccount: "",
           /**
-           * Who paid it rides into the expense description too. The
-           * Expense's own createdBy is the signed-in ACCOUNT, which the
-           * two owners share - so without this the expense could not
-           * say which of them actually handed the money over.
+           * Who paid it, carried onto the expense. Its own createdBy is
+           * the signed-in ACCOUNT, which the two owners share - so
+           * without this the expense could not say which of them
+           * actually handed the money over.
            */
-          description: [data.paidBy ? `Paid by ${data.paidBy}` : "", data.notes.trim()]
-            .filter(Boolean)
-            .join(" - "),
+          paidBy: (COUNTER_SELLERS as readonly string[]).includes(data.paidBy)
+            ? data.paidBy
+            : "",
+          description: data.notes.trim(),
           status: "PAID",
           // Midday for the same time-zone reason as a back-dated
           // purchase: a bare date read west of here lands a day early.

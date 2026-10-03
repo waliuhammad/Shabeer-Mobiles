@@ -123,14 +123,15 @@ export function ReportsView() {
           EXPENSE_CATEGORY_CONFIG[e.category].label,
           formatOrderDate(e.expenseDate),
           expensePaymentLabel(e),
+          e.paidBy || "-",
           EXPENSE_STATUS_CONFIG[e.status].label,
           e.amount,
         ]);
-        const total = rows.reduce((t, r) => t + Number(r[5]), 0);
+        const total = rows.reduce((t, r) => t + Number(r[6]), 0);
         return {
-          columns: ["Expense", "Category", "Date", "Payment", "Status", "Amount"],
+          columns: ["Expense", "Category", "Date", "Payment", "Paid By", "Status", "Amount"],
           rows,
-          totals: rows.length ? ["Total", "", "", "", "", total] : undefined,
+          totals: rows.length ? ["Total", "", "", "", "", "", total] : undefined,
         };
       }
 

@@ -25,7 +25,7 @@ import {
   validateExpense,
   type ExpenseErrors,
 } from "@/lib/expense-utils";
-import { BANK_ACCOUNTS } from "@/lib/constants";
+import { BANK_ACCOUNTS, COUNTER_SELLERS } from "@/lib/constants";
 import { now } from "@/lib/demo-clock";
 import { toDateInputValue } from "@/lib/date-range";
 import type {
@@ -64,6 +64,8 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
           // Older transfers have no account; left blank so the user is
           // asked rather than having one silently guessed for them.
           bankAccount: expense.bankAccount,
+          // Blank on older rows, so the user is asked rather than guessed for.
+          paidBy: expense.paidBy,
           description: expense.description,
           status: expense.status,
           expenseDate: toDateInputValue(new Date(expense.expenseDate)),
@@ -74,6 +76,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
           amount: "",
           paymentMethod: "CASH",
           bankAccount: BANK_ACCOUNTS[0],
+          paidBy: COUNTER_SELLERS[0],
           description: "",
           status: "PAID",
           // Defaults to today, which is what most entries are.
@@ -100,7 +103,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
 
     const found = validateExpense(data);
     if (Object.keys(found).length > 0) {
-      setTouched(new Set(["title", "amount", "expenseDate", "bankAccount"]));
+      setTouched(new Set(["title", "amount", "expenseDate", "bankAccount", "paidBy"]));
       setErrors(found);
       return;
     }
@@ -256,7 +259,35 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
             required
           />
 
-          <div className="sm:col-span-2">
+          <div>
+            <label
+              htmlFor="expense-paid-by"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Paid By <span className="text-destructive">*</span>
+            </label>
+            <Select value={data.paidBy} onValueChange={(v) => set("paidBy", v)}>
+              <SelectTrigger
+                id="expense-paid-by"
+                className="h-10 w-full"
+                aria-invalid={Boolean(errors.paidBy)}
+              >
+                <SelectValue placeholder="Choose who paid" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTER_SELLERS.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.paidBy && (
+              <p className="mt-1.5 text-xs text-destructive">{errors.paidBy}</p>
+            )}
+          </div>
+
+          <div>
             <label
               htmlFor="expense-status"
               className="mb-1.5 block text-sm font-medium text-foreground"

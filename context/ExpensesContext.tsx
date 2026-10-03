@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useMemo } from "react";
 import type { QueryDocumentSnapshot } from "firebase/firestore";
 import { COLLECTIONS } from "@/lib/firebase/firestore";
 import { useFirestoreCollection } from "@/hooks/use-firestore-collection";
-import { writeDoc } from "@/lib/firebase/write";
+import { removeDoc, writeDoc } from "@/lib/firebase/write";
 import { createExpenseId } from "@/lib/expense-utils";
 import { useAuth } from "@/context/AuthContext";
 import type { Expense, ExpenseFormData, ExpenseStatus } from "@/types";
@@ -12,10 +12,12 @@ import type { Expense, ExpenseFormData, ExpenseStatus } from "@/types";
 /**
  * Operating expenses - live Firestore.
  *
- * THERE IS NO DELETE. An expense entered in error is CANCELLED, which
- * removes it from every total while leaving it visible in the list.
- * firestore.rules enforces the same thing (`allow delete: if false`), so
- * this is not merely a UI convention - the database refuses it.
+ * DELETE IS PERMANENT and owner-only (firestore.rules: isOwner). The
+ * shop asked for it: a mistyped row cluttering the list forever was
+ * worse to them than the lost audit trail. Every total is derived from
+ * this list, so a deleted row simply stops counting - nothing else to
+ * update. Older rows may still be CANCELLED, which keeps them visible
+ * but out of every total.
  *
  * Cashiers cannot read this collection at all. Expenses reveal the
  * shop's cost base.
@@ -27,6 +29,7 @@ interface ExpensesContextValue {
   createExpense: (data: ExpenseFormData) => Promise<Expense>;
   updateExpense: (id: string, data: ExpenseFormData) => Promise<Expense | undefined>;
   cancelExpense: (id: string) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
   setExpenseStatus: (id: string, status: ExpenseStatus) => Promise<void>;
   loading: boolean;
   error: string | null;
@@ -52,6 +55,7 @@ function mapExpense(doc: QueryDocumentSnapshot): Expense | null {
         ? d.paymentMethod
         : "CASH",
     bankAccount: typeof d.bankAccount === "string" ? d.bankAccount : "",
+    paidBy: typeof d.paidBy === "string" ? d.paidBy : "",
     description: typeof d.description === "string" ? d.description : "",
     status,
     expenseDate: typeof d.expenseDate === "string" ? d.expenseDate : new Date(0).toISOString(),
@@ -94,6 +98,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         amount: Math.round(Number(data.amount)),
         paymentMethod: data.paymentMethod,
         bankAccount: data.paymentMethod === "BANK_TRANSFER" ? data.bankAccount : "",
+        paidBy: data.paidBy,
         description: data.description.trim(),
         status: data.status,
         expenseDate: new Date(data.expenseDate).toISOString(),
@@ -122,6 +127,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         amount: Math.round(Number(data.amount)),
         paymentMethod: data.paymentMethod,
         bankAccount: data.paymentMethod === "BANK_TRANSFER" ? data.bankAccount : "",
+        paidBy: data.paidBy,
         description: data.description.trim(),
         status: data.status,
         expenseDate: new Date(data.expenseDate).toISOString(),
@@ -146,6 +152,11 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     [setExpenseStatus]
   );
 
+  const deleteExpense = useCallback(
+    (id: string) => removeDoc(COLLECTIONS.expenses, id),
+    []
+  );
+
   const value = useMemo(
     () => ({
       expenses,
@@ -153,13 +164,14 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
       createExpense,
       updateExpense,
       cancelExpense,
+      deleteExpense,
       setExpenseStatus,
       loading: state.loading,
       error: state.error,
       isHydrated: !state.loading,
     }),
     [
-      expenses, getExpense, createExpense, updateExpense, cancelExpense,
+      expenses, getExpense, createExpense, updateExpense, cancelExpense, deleteExpense,
       setExpenseStatus, state.loading, state.error,
     ]
   );

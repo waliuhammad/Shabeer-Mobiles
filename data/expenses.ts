@@ -49,6 +49,7 @@ function buildExpenses(): Expense[] {
     amount: seed.amount,
     paymentMethod: seed.paymentMethod,
     bankAccount: "",
+    paidBy: "",
     description: seed.description,
     status: seed.status,
     expenseDate: daysAgo(seed.daysAgo),

@@ -260,9 +260,9 @@ service cloud.firestore {
     match /expenses/{expenseId} {
       allow read: if isOwnerOrManager();
       allow create, update: if isOwnerOrManager();
-      // Cancelled, never deleted - a financial record nobody can audit
-      // is worse than a wrong one everybody can see.
-      allow delete: if false;
+      // The owner asked to be able to remove mistaken rows outright.
+      // Owner only: a manager can still cancel, which keeps the trail.
+      allow delete: if isOwner();
     }
 
     /** Shop settings: everyone reads (the footer needs them), owner writes. */
