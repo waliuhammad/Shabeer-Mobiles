@@ -119,6 +119,18 @@ export function InvoiceDetailView({ invoiceNumber }: InvoiceDetailViewProps) {
               <CalendarDays className="size-3.5" aria-hidden="true" />
               {formatOrderDateTime(invoice.createdAt)}
             </p>
+            {/*
+              A BACK-DATED BILL SAYS SO. The date above was moved to the
+              day the sale happened, which is correct and is what every
+              figure reads - but it means the record no longer shows that
+              it was keyed in later. Anyone auditing a month needs to be
+              able to tell the two apart.
+            */}
+            {invoice.enteredAt && (
+              <p className="mt-1 text-[11px] text-gold-deep">
+                Entered later, on {formatOrderDateTime(invoice.enteredAt)}
+              </p>
+            )}
           </div>
           <span
             className={cn(

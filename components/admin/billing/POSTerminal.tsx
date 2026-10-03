@@ -25,11 +25,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COUNTER_SELLERS } from "@/lib/constants";
+import { parseLocalDate, toDateInputValue } from "@/lib/date-range";
+import { now } from "@/lib/demo-clock";
 import { POSSummary } from "@/components/admin/billing/POSSummary";
 import { InvoicePreview } from "@/components/admin/billing/InvoicePreview";
 import { usePOS } from "@/hooks/use-pos";
 import { useInvoices } from "@/context/InvoicesContext";
 import { validateBill } from "@/lib/pos-utils";
+import { cn } from "@/lib/utils";
 import type { Invoice } from "@/types";
 
 /**
@@ -71,6 +74,17 @@ export function POSTerminal() {
   const [confirmNewBill, setConfirmNewBill] = useState(false);
 
   const hasItems = pos.items.length > 0;
+
+  /**
+   * Today, as the date input spells it. Used twice: as the picker's
+   * ceiling, and to decide whether the bill is live or historical.
+   *
+   * Recomputed every render rather than memoised, so a till left open
+   * across midnight starts calling the new day "today" instead of
+   * insisting it is still yesterday.
+   */
+  const todayValue = toDateInputValue(now());
+  const isBackdated = Boolean(pos.saleDate) && pos.saleDate !== todayValue;
 
   /**
    * MOCK save.
@@ -143,6 +157,19 @@ export function POSTerminal() {
           // Only meaningful for a transfer; the server ignores it
           // otherwise rather than storing an account on a cash sale.
           bankAccount: pos.bankAccount,
+          /**
+           * OMITTED ENTIRELY when the date still reads today, and that
+           * omission is what tells the server this is a live sale
+           * rather than history being keyed in.
+           *
+           * The server cannot work that out for itself: it runs in UTC
+           * and the shop runs five hours ahead, so anything rung up
+           * before 5am local would look back-dated to it. The browser
+           * is the only clock that knows what today is in Multan.
+           */
+          ...(pos.saleDate && pos.saleDate !== todayValue
+            ? { saleDate: pos.saleDate }
+            : {}),
         }),
       });
 
@@ -159,8 +186,16 @@ export function POSTerminal() {
       setInvoices((current) => [invoice, ...current]);
       setPreviewInvoice(invoice);
 
-      toast.success("Sale recorded.", {
-        description: `${invoice.invoiceNumber} · stock updated`,
+      /**
+       * The date is called out when it is not today. "Sale recorded"
+       * alone would be the same message for a live bill and for a bill
+       * filed six months back, and the second one is the case where
+       * somebody needs to notice if the date was wrong.
+       */
+      toast.success(isBackdated ? "Back-dated sale recorded." : "Sale recorded.", {
+        description: isBackdated
+          ? `${invoice.invoiceNumber} · dated ${parseLocalDate(pos.saleDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`
+          : invoice.invoiceNumber,
       });
 
       // Clear the till, ready for the next customer.
@@ -324,26 +359,80 @@ export function POSTerminal() {
               customer because they are the two facts about this sale
               that are not money.
             */}
-            <div className="mt-3">
-              <label
-                htmlFor="pos-sold-by"
-                className="mb-1 block text-xs font-medium text-muted-foreground"
-              >
-                Sold by
-              </label>
-              <Select value={pos.soldBy} onValueChange={pos.setSoldBy}>
-                <SelectTrigger id="pos-sold-by" className="h-10 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTER_SELLERS.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="pos-sold-by"
+                  className="mb-1 block text-xs font-medium text-muted-foreground"
+                >
+                  Sold by
+                </label>
+                <Select value={pos.soldBy} onValueChange={pos.setSoldBy}>
+                  <SelectTrigger id="pos-sold-by" className="h-10 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTER_SELLERS.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/*
+                THE DAY THE SALE HAPPENED, so the shop's six months of
+                paper bills can be keyed in. Expenses, purchases and
+                payments to the landlord could already be back-dated;
+                the till was the one record that could not, which left a
+                month able to show its costs but not its takings - and a
+                month like that reports a loss that never happened.
+              */}
+              <div>
+                <label
+                  htmlFor="pos-sale-date"
+                  className="mb-1 block text-xs font-medium text-muted-foreground"
+                >
+                  Sale date
+                </label>
+                <input
+                  id="pos-sale-date"
+                  type="date"
+                  value={pos.saleDate}
+                  max={todayValue}
+                  onChange={(e) => pos.setSaleDate(e.target.value)}
+                  className={cn(
+                    "h-10 w-full rounded-lg border bg-background px-3 text-sm tabular-nums outline-none transition-colors focus:border-secondary focus:ring-2 focus:ring-ring/30",
+                    // Coloured only while it is NOT today. A normal sale
+                    // should look like every other field; a back-dated
+                    // one has to be impossible to miss, because the next
+                    // bill keeps the same date on purpose.
+                    isBackdated ? "border-gold-deep text-gold-deep" : "border-border"
+                  )}
+                />
+              </div>
             </div>
+
+            {isBackdated && (
+              <p className="mt-2 flex items-start gap-2 rounded-lg border border-gold-deep/40 bg-gold-deep/5 px-3 py-2 text-[11px] leading-relaxed text-gold-deep">
+                <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  Dated{" "}
+                  <strong className="font-semibold">
+                    {parseLocalDate(pos.saleDate).toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </strong>
+                  , not today. It will count in that month&apos;s revenue and
+                  profit. The date stays put for the next bill, so a whole
+                  day can be entered in one go - set it back to today when
+                  you are done.
+                </span>
+              </p>
+            )}
           </div>
 
           {/* Lines. Bounded so a 20-line bill does not push the totals

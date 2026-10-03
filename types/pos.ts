@@ -171,8 +171,22 @@ export interface Invoice {
   paymentMethod: POSPaymentMethod;
   paymentStatus: POSPaymentStatus;
 
-  /** ISO 8601. Becomes a Firestore Timestamp later. */
+  /**
+   * WHEN THE SALE HAPPENED. ISO 8601, and the field every date range
+   * reads - so a back-dated bill lands in the month it was sold, not
+   * the month it was typed.
+   */
   createdAt: string;
+  /**
+   * When the row was actually written, set only when it differs from
+   * createdAt - i.e. only on a back-dated sale.
+   *
+   * Without it there is no trace that a bill was entered after the
+   * fact: createdAt has been moved, and nothing else remembers. Six
+   * months of history keyed in on one afternoon should be visible as
+   * exactly that, not indistinguishable from six months of trading.
+   */
+  enteredAt?: string;
   /** Who rang it up. A placeholder until staff accounts exist. */
   cashierName: string;
   /**

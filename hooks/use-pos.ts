@@ -8,6 +8,8 @@ import {
   productToPOSItem,
 } from "@/lib/pos-utils";
 import { BANK_ACCOUNTS, COUNTER_SELLERS } from "@/lib/constants";
+import { toDateInputValue } from "@/lib/date-range";
+import { now } from "@/lib/demo-clock";
 import { STOCK_TRACKING_ENABLED } from "@/lib/feature-flags";
 import type {
   POSPaymentMethod,
@@ -50,6 +52,17 @@ interface POSState {
   soldBy: string;
   /** Only meaningful when paymentMethod is "bank-transfer". */
   bankAccount: string;
+  /**
+   * THE DAY THE SALE HAPPENED, as "YYYY-MM-DD". Today for every normal
+   * bill; moved back to key in an older one.
+   *
+   * It exists because the shop has six months of paper bills and every
+   * other record - expenses, purchases, payments to the landlord - can
+   * already be back-dated. The till could not, so a month's costs could
+   * be entered while its takings could not, and the month then reported
+   * a loss that never happened.
+   */
+  saleDate: string;
 }
 
 /** What the off-catalogue form collects. */
@@ -71,11 +84,13 @@ type POSAction =
   | { type: "SET_PAYMENT_METHOD"; method: POSPaymentMethod }
   | { type: "SET_SOLD_BY"; soldBy: string }
   | { type: "SET_BANK_ACCOUNT"; bankAccount: string }
-  | { type: "RESET"; invoiceNumber: string };
+  | { type: "SET_SALE_DATE"; saleDate: string }
+  | { type: "RESET"; invoiceNumber: string; saleDate: string };
 
-function createInitialState(invoiceNumber: string): POSState {
+function createInitialState(invoiceNumber: string, saleDate?: string): POSState {
   return {
     invoiceNumber,
+    saleDate: saleDate ?? toDateInputValue(now()),
     customerName: "",
     customerPhone: "",
     customerAddress: "",
@@ -210,8 +225,23 @@ function posReducer(state: POSState, action: POSAction): POSState {
     case "SET_BANK_ACCOUNT":
       return { ...state, bankAccount: action.bankAccount };
 
+    case "SET_SALE_DATE":
+      return { ...state, saleDate: action.saleDate };
+
     case "RESET":
-      return createInitialState(action.invoiceNumber);
+      /**
+       * THE DATE SURVIVES THE RESET, alone among the fields.
+       *
+       * Everything else must be cleared - a discount or a customer name
+       * carried into the next bill is a money bug, which is the reason
+       * this reducer exists. The date is the opposite case: entering a
+       * day's worth of old bills means ringing up several in a row for
+       * the SAME day, and snapping back to today after each one would
+       * silently file the second bill onwards in the wrong month. It is
+       * also the one field the cashier can see at a glance, so a stale
+       * value cannot go unnoticed the way a stale discount could.
+       */
+      return createInitialState(action.invoiceNumber, action.saleDate);
 
     default:
       return state;
@@ -302,6 +332,11 @@ export function usePOS(startingSequence: number) {
     []
   );
 
+  const setSaleDate = useCallback(
+    (saleDate: string) => dispatch({ type: "SET_SALE_DATE", saleDate }),
+    []
+  );
+
   const setPaymentMethod = useCallback(
     (method: POSPaymentMethod) =>
       dispatch({ type: "SET_PAYMENT_METHOD", method }),
@@ -312,8 +347,12 @@ export function usePOS(startingSequence: number) {
   const startNewBill = useCallback(() => {
     const next = sequence + 1;
     setSequence(next);
-    dispatch({ type: "RESET", invoiceNumber: formatInvoiceNumber(next) });
-  }, [sequence]);
+    dispatch({
+      type: "RESET",
+      invoiceNumber: formatInvoiceNumber(next),
+      saleDate: state.saleDate,
+    });
+  }, [sequence, state.saleDate]);
 
   /** How many of this product are already on the bill - lets the product
    *  list show "2 on bill" and disable Add once stock is exhausted. */
@@ -336,6 +375,7 @@ export function usePOS(startingSequence: number) {
     setPaymentMethod,
     setSoldBy,
     setBankAccount,
+    setSaleDate,
     startNewBill,
     getBilledQuantity,
   };

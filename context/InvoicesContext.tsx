@@ -110,6 +110,7 @@ function mapInvoice(doc: QueryDocumentSnapshot): Invoice | null {
     // exactly how isCustom silently vanished once already.
     soldBy: typeof d.soldBy === "string" ? d.soldBy : undefined,
     bankAccount: typeof d.bankAccount === "string" ? d.bankAccount : undefined,
+    enteredAt: typeof d.enteredAt === "string" ? d.enteredAt : undefined,
   };
 }
 

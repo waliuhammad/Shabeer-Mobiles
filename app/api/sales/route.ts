@@ -138,6 +138,7 @@ export async function POST(request: Request) {
     paymentMethod?: unknown;
     soldBy?: unknown;
     bankAccount?: unknown;
+    saleDate?: unknown;
   };
   try {
     body = await request.json();
@@ -220,6 +221,67 @@ export async function POST(request: Request) {
   const soldBy = (COUNTER_SELLERS as readonly string[]).includes(String(body.soldBy))
     ? String(body.soldBy)
     : undefined;
+
+  /**
+   * WHEN THE SALE HAPPENED, so six months of paper bills can be keyed
+   * in and land in the months they belong to.
+   *
+   * createdAt used to be `new Date()` with no way to say otherwise,
+   * which made the till the one record in the system that could not be
+   * back-dated - expenses, purchases and owner payments all can. That
+   * left the shop able to enter the costs of a month but not its
+   * takings, and a period with costs and no sales reports a loss that
+   * never happened.
+   *
+   * Midday, not midnight, for the reason documented in
+   * PurchasingContext.createPurchase: a bare yyyy-mm-dd stamped at
+   * 00:00 and read back west of here lands on the previous day, which
+   * would file a sale in the wrong month at every month boundary.
+   *
+   * REJECTED, NOT DROPPED, when unreadable or in the future - unlike
+   * soldBy. A mislabelled seller is a wrong label on a real sale; a
+   * wrong date puts real money in the wrong month and silently
+   * falsifies both. Better to refuse and be corrected.
+   */
+  const nowIso = new Date().toISOString();
+  let createdAt = nowIso;
+  let enteredAt: string | undefined;
+
+  if (typeof body.saleDate === "string" && body.saleDate.trim()) {
+    const typed = body.saleDate.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(typed)) {
+      return NextResponse.json(
+        { error: "The sale date must be a calendar date." },
+        { status: 400 }
+      );
+    }
+    const stamped = new Date(`${typed}T12:00:00`);
+    if (Number.isNaN(stamped.getTime())) {
+      return NextResponse.json(
+        { error: "That sale date could not be read." },
+        { status: 400 }
+      );
+    }
+    const iso = stamped.toISOString();
+    if (iso > nowIso) {
+      return NextResponse.json(
+        { error: "A sale cannot be dated in the future." },
+        { status: 400 }
+      );
+    }
+    createdAt = iso;
+    /**
+     * A supplied saleDate always means "entered after the fact",
+     * because the till OMITS the field when the date still reads
+     * today. Deciding that here instead would mean comparing against
+     * the SERVER's calendar day - and the server runs in UTC while the
+     * shop runs five hours ahead, so every sale rung up before 5am
+     * local would be stamped as back-dated. The browser is the only
+     * clock that knows what today is in Multan, which is the same
+     * reasoning as the timezone note in lib/date-range.ts.
+     */
+    enteredAt = nowIso;
+  }
 
   const db = getAdminDb();
 
@@ -338,8 +400,6 @@ export async function POST(request: Request) {
       const nextSequence = (counterSnap.exists ? Number(counterSnap.data()?.value ?? 0) : 0) + 1;
       const invoiceNumber = `SM-INV-${String(nextSequence).padStart(4, "0")}`;
       const id = `inv_${String(nextSequence).padStart(4, "0")}`;
-      const createdAt = new Date().toISOString();
-
 
       const record: Invoice = {
         id,
@@ -370,6 +430,7 @@ export async function POST(request: Request) {
         cashierName: user.displayName ?? user.email ?? "Staff",
         ...(soldBy ? { soldBy } : {}),
         ...(bankAccount ? { bankAccount } : {}),
+        ...(enteredAt ? { enteredAt } : {}),
       };
 
       // ---- writes ----
