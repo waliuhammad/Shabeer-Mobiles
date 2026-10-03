@@ -100,6 +100,15 @@ export type OwnerErrors = Partial<Record<keyof OwnerFormData, string>>;
      REFUND is a deposit coming back. It reduces what the landlord
      holds; it is not income.
 
+     DRAWING is an owner taking money out of the business, and CAPITAL
+     is an owner putting money in. NEITHER IS A COST OR INCOME - they
+     move equity, not profit. This is the mistake that most often
+     flatters or ruins a small shop's books: money the owners live on,
+     booked as an expense, makes a profitable shop look like it is
+     losing, and the owners then cannot tell trading from their own
+     withdrawals. The two owners share a till, so this is also the only
+     record of who has taken what.
+
    This is the same distinction lib/finance-utils.ts already makes
    about stock purchases - money moving is not the same as money spent.
    ==================================================================== */
@@ -110,6 +119,8 @@ export const OWNER_PAYMENT_KINDS = [
   "rent",
   "maintenance",
   "refund",
+  "drawing",
+  "capital",
 ] as const;
 
 export type OwnerPaymentKind = (typeof OWNER_PAYMENT_KINDS)[number];

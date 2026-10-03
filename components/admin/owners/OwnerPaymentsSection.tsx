@@ -25,7 +25,9 @@ import {
   depositHeld,
   isCostKind,
   isDepositKind,
+  isEquityKind,
   isRecurringKind,
+  netDrawn,
   OWNER_PAYMENT_LABELS,
   totalOfKind,
   validateOwnerPayment,
@@ -59,6 +61,7 @@ export function OwnerPaymentsSection({ ownerId }: { ownerId: string }) {
       refunded: totalOfKind(payments, "refund"),
       rent: totalOfKind(payments, "rent"),
       maintenance: totalOfKind(payments, "maintenance"),
+      drawn: netDrawn(payments),
     }),
     [payments]
   );
@@ -70,13 +73,13 @@ export function OwnerPaymentsSection({ ownerId }: { ownerId: string }) {
           <h2 className="text-sm font-semibold text-foreground">Money paid</h2>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             Advance and security are refundable. Rent and maintenance are costs
-            and go to Profit &amp; Loss.
+            and go to Profit &amp; Loss. Drawings are neither.
           </p>
         </div>
         <RecordPaymentDialog ownerId={ownerId} onRecord={recordPayment} />
       </div>
 
-      <dl className="grid gap-px bg-border sm:grid-cols-3">
+      <dl className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           Icon={Wallet}
           label="Deposit held"
@@ -90,6 +93,15 @@ export function OwnerPaymentsSection({ ownerId }: { ownerId: string }) {
           label="Maintenance paid"
           value={formatPrice(summary.maintenance)}
           hint="Total to date"
+        />
+        {/* Equity, not profit - which is why it sits beside the other
+            balances rather than inside them. */}
+        <Stat
+          Icon={ArrowDownLeft}
+          label="Net drawn out"
+          value={formatPrice(summary.drawn)}
+          hint="Taken out, less put in. Not a cost."
+          tone={summary.drawn > 0 ? "bad" : "plain"}
         />
       </dl>
 
@@ -124,9 +136,11 @@ export function OwnerPaymentsSection({ ownerId }: { ownerId: string }) {
                         "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                         isDepositKind(p.kind)
                           ? "bg-cyan-soft text-secondary"
-                          : p.kind === "refund"
+                          : p.kind === "refund" || p.kind === "capital"
                             ? "bg-success/10 text-success"
-                            : "bg-muted text-muted-foreground"
+                            : p.kind === "drawing"
+                              ? "bg-warning/10 text-warning"
+                              : "bg-muted text-muted-foreground"
                       )}
                     >
                       {OWNER_PAYMENT_LABELS[p.kind]}
@@ -146,10 +160,12 @@ export function OwnerPaymentsSection({ ownerId }: { ownerId: string }) {
                   <td
                     className={cn(
                       "whitespace-nowrap px-5 py-2.5 text-right font-semibold tabular-nums",
-                      p.kind === "refund" ? "text-success" : "text-foreground"
+                      p.kind === "refund" || p.kind === "capital"
+                        ? "text-success"
+                        : "text-foreground"
                     )}
                   >
-                    {p.kind === "refund" ? "- " : ""}
+                    {p.kind === "refund" || p.kind === "capital" ? "- " : ""}
                     {formatPrice(p.amount)}
                   </td>
                   <td role="presentation" className="p-0" />
@@ -389,6 +405,14 @@ function RecordPaymentDialog({
                 This also creates an <strong className="font-semibold text-foreground">Expense</strong>,
                 so it reaches Profit &amp; Loss. Do not enter it under Expenses as
                 well - it would be counted twice.
+              </>
+            ) : isEquityKind(data.kind) ? (
+              <>
+                Money between the owners and the business.{" "}
+                <strong className="font-semibold text-foreground">Not a cost</strong>{" "}
+                and not income - it moves equity, so it never reaches Profit
+                &amp; Loss. Booking what the owners live on as an expense is
+                what makes a profitable shop look like it is losing.
               </>
             ) : data.kind === "refund" ? (
               <>

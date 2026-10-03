@@ -121,6 +121,8 @@ export const OWNER_PAYMENT_LABELS: Record<OwnerPaymentKind, string> = {
   rent: "Rent",
   maintenance: "Maintenance",
   refund: "Refund received",
+  drawing: "Drawing - owner took out",
+  capital: "Capital - owner put in",
 };
 
 /**
@@ -132,6 +134,19 @@ const DEPOSIT_KINDS: OwnerPaymentKind[] = ["advance", "security"];
  * Money that is GONE - the month was used up. These become Expenses.
  */
 const COST_KINDS: OwnerPaymentKind[] = ["rent", "maintenance"];
+
+/**
+ * Money moving between the business and its owners.
+ *
+ * Equity, not profit. Kept out of both the deposit balance and the
+ * cost totals, because it is neither: the landlord is not holding it,
+ * and the business did not consume it.
+ */
+const EQUITY_KINDS: OwnerPaymentKind[] = ["drawing", "capital"];
+
+export function isEquityKind(kind: OwnerPaymentKind): boolean {
+  return EQUITY_KINDS.includes(kind);
+}
 
 export function isDepositKind(kind: OwnerPaymentKind): boolean {
   return DEPOSIT_KINDS.includes(kind);
@@ -177,6 +192,23 @@ export function depositHeld(payments: OwnerPayment[]): number {
   return payments.reduce((sum, p) => {
     if (isDepositKind(p.kind)) return sum + p.amount;
     if (p.kind === "refund") return sum - p.amount;
+    return sum;
+  }, 0);
+}
+
+/**
+ * What this owner has taken out, net of anything they put in.
+ *
+ * Positive means they are ahead of the business. Deliberately separate
+ * from profit: a drawing is not a cost, so it never reaches Profit &
+ * Loss, and the figure here answers a different question - who has had
+ * what - which is the one two owners sharing a till actually argue
+ * about.
+ */
+export function netDrawn(payments: OwnerPayment[]): number {
+  return payments.reduce((sum, p) => {
+    if (p.kind === "drawing") return sum + p.amount;
+    if (p.kind === "capital") return sum - p.amount;
     return sum;
   }, 0);
 }

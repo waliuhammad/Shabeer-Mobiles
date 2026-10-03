@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Info, Store, Globe, TriangleAlert } from "lucide-react";
+import { MoneyPosition } from "@/components/admin/finance/MoneyPosition";
 import { PeriodFilter } from "@/components/admin/finance/PeriodFilter";
 import { useCatalog } from "@/context/CatalogContext";
 import { useOrders } from "@/context/OrdersContext";
@@ -26,7 +27,7 @@ import { SALES_CHANNEL_LABELS } from "@/types";
  *
  * The whole page is one statement, read top to bottom:
  *
- *     Revenue  -  COGS  =  Gross Profit  -  Expenses  =  Net Profit
+ *     Revenue  -  COGS  =  Gross Profit  -  Expenses  =  Operating Profit
  *
  * Nothing here is calculated locally. Every figure comes from
  * getFinancialBreakdown(), the same function the dashboard uses, so the
@@ -256,12 +257,25 @@ export function ProfitLossView() {
           )}
         >
           <div>
+            {/*
+              OPERATING PROFIT, not Net Profit.
+
+              A net profit is what is left after tax, and this system has
+              no tax line - nothing anywhere records one. Calling this
+              "Net Profit" claimed a completeness it does not have, and
+              the number somebody would carry to a tax return or a
+              partnership settlement is not this one.
+
+              It is also before any money the owners take out, which is
+              a drawing against equity rather than a cost, and is
+              recorded against each owner instead.
+            */}
             <p className="font-heading text-base font-bold text-foreground sm:text-lg">
-              {loss ? "Net Loss" : "Net Profit"}
+              {loss ? "Operating Loss" : "Operating Profit"}
             </p>
             <p className="mt-0.5 max-w-md text-[11px] leading-relaxed text-muted-foreground">
-              Gross profit minus operating expenses. This is what the business
-              actually kept.
+              Gross profit minus operating expenses - what trading earned.
+              Before tax, and before anything the owners drew out.
             </p>
           </div>
           <div className="text-right">
@@ -299,6 +313,9 @@ export function ProfitLossView() {
           hint="Billed but not yet collected"
         />
       </div>
+
+      {/* The balances, which a profit statement cannot answer. */}
+      <MoneyPosition />
 
       <p className="mt-4 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
         <Info className="mt-px size-3.5 shrink-0 text-secondary" aria-hidden="true" />
