@@ -83,9 +83,8 @@ export interface MapCoordinates {
  * text search to an exact point. Nothing else in the code changes.
  */
 function resolveShopCoordinates(): MapCoordinates | null {
-  // Replace this line with the copied pin, e.g.
-  //   return { lat: 30.1956, lng: 71.4753 };
-  return null;
+  // Pinned by the shop owner on Google Maps.
+  return { lat: 30.203701, lng: 71.460357 };
 }
 
 /**
