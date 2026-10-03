@@ -18,9 +18,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useExpenses } from "@/context/ExpensesContext";
 import {
   EMPTY_EXPENSE_FILTERS,
-  EXPENSE_FILTER_CATEGORIES,
+  expenseFilterCategories,
   EXPENSE_CATEGORY_CONFIG,
-  EXPENSE_FILTER_PAYMENT_METHODS,
+  expenseFilterPaymentMethods,
   EXPENSE_PAYMENT_METHOD_LABELS,
   EXPENSE_STATUSES,
   EXPENSE_STATUS_CONFIG,
@@ -132,7 +132,7 @@ export function ExpensesView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {EXPENSE_FILTER_CATEGORIES.map((c) => (
+            {expenseFilterCategories(expenses).map((c) => (
               <SelectItem key={c} value={c}>
                 {EXPENSE_CATEGORY_CONFIG[c].label}
               </SelectItem>
@@ -151,7 +151,7 @@ export function ExpensesView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Payment Methods</SelectItem>
-            {EXPENSE_FILTER_PAYMENT_METHODS.map((m) => (
+            {expenseFilterPaymentMethods(expenses).map((m) => (
               <SelectItem key={m} value={m}>
                 {EXPENSE_PAYMENT_METHOD_LABELS[m]}
               </SelectItem>

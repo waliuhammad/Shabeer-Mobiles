@@ -87,12 +87,19 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
 ];
 
 /**
- * What the list page can FILTER by: every category a record can carry,
- * retired ones included, so old rent or salary rows can still be found.
+ * What the list page can FILTER by: the same list the form offers, plus
+ * a retired category ONLY while some expense still carries it - Rent
+ * from the Owners page, say. A filter option that can never match
+ * anything is clutter; one that is missing for rows that exist hides
+ * them.
  */
-export const EXPENSE_FILTER_CATEGORIES = Object.keys(
-  EXPENSE_CATEGORY_CONFIG
-) as ExpenseCategory[];
+export function expenseFilterCategories(expenses: Expense[]): ExpenseCategory[] {
+  const used = new Set(expenses.map((e) => e.category));
+  const retired = (Object.keys(EXPENSE_CATEGORY_CONFIG) as ExpenseCategory[]).filter(
+    (c) => !EXPENSE_CATEGORIES.includes(c) && used.has(c)
+  );
+  return [...EXPENSE_CATEGORIES, ...retired];
+}
 
 export const EXPENSE_STATUSES: ExpenseStatus[] = ["PAID", "PENDING", "CANCELLED"];
 
@@ -106,10 +113,12 @@ export const EXPENSE_PAYMENT_METHODS: ExpensePaymentMethod[] = [
   "BANK_TRANSFER",
 ];
 
-/** What the list can FILTER by, retired "Other" included. */
-export const EXPENSE_FILTER_PAYMENT_METHODS = Object.keys(
-  EXPENSE_PAYMENT_METHOD_LABELS
-) as ExpensePaymentMethod[];
+/** Same rule as expenseFilterCategories: "Other" only while a row uses it. */
+export function expenseFilterPaymentMethods(expenses: Expense[]): ExpensePaymentMethod[] {
+  return expenses.some((e) => e.paymentMethod === "OTHER")
+    ? [...EXPENSE_PAYMENT_METHODS, "OTHER"]
+    : EXPENSE_PAYMENT_METHODS;
+}
 
 /** "Cash", or "Bank Transfer · JazzCash" when the account is known. */
 export function expensePaymentLabel(
