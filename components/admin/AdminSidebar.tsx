@@ -33,7 +33,7 @@ export function AdminSidebar() {
       </div>
 
       {/* --- Navigation (scrolls if the viewport is short) --- */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-4">
+      <div className="scrollbar-dark min-h-0 flex-1 overflow-y-auto px-2 py-4">
         <AdminNavLinks />
       </div>
 

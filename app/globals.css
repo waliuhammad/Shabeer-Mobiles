@@ -204,6 +204,55 @@
   }
 }
 
+/* ============================================================
+   SCROLLBAR ON A DARK SURFACE
+   ============================================================
+
+   The admin sidebar is navy and the browser's default scrollbar is
+   light grey furniture with arrow buttons on either end - it reads as
+   a piece of someone else's window pasted down the side of the panel.
+
+   This makes it a thin translucent bar with no buttons and no track,
+   so it reads as part of the surface it sits on. It is STYLED, not
+   hidden: the nav is taller than a short laptop screen, and a scroll
+   region with no visible indicator is one people do not know to
+   scroll.
+
+   Firefox takes scrollbar-width / scrollbar-color; Chrome and Safari
+   need the ::-webkit- pseudo-elements. Both are set, so neither
+   browser falls back to the default.
+   ============================================================ */
+@layer components {
+  .scrollbar-dark {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.22) transparent;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background-color: rgb(255 255 255 / 0.18);
+    border-radius: 9999px;
+  }
+
+  .scrollbar-dark:hover::-webkit-scrollbar-thumb {
+    background-color: rgb(255 255 255 / 0.32);
+  }
+
+  /* The little arrow buttons at each end are the most dated part of
+     the default, and nothing in this panel uses them. */
+  .scrollbar-dark::-webkit-scrollbar-button {
+    display: none;
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-poppins), var(--font-inter), ui-sans-serif, sans-serif;
