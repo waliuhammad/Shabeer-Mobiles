@@ -133,6 +133,8 @@ export function OwnerDetailView({ ownerId }: { ownerId: string }) {
           </dl>
         </div>
       </div>
+
+      <OwnerPaymentsSection ownerId={owner.id} />
     </>
   );
 }
